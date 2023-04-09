@@ -8,28 +8,49 @@ defmodule LibRedis.Pool do
 
   children = [
     ...
-    {LibRedis.Pool, url: "redis://:123456@localhost:6379", name: Redis}
+    {LibRedis.Pool, pool: LibRedis.Pool.new(name: Redis, url: "redis://:123456@localhost:6379")}
   ]
   """
 
   @behaviour NimblePool
 
   # type
-
+  @type t :: %__MODULE__{
+          name: GenServer.name(),
+          url: String.t(),
+          pool_size: non_neg_integer()
+        }
   @type command_t :: [binary() | bitstring()]
-  @type redis_opts :: [name: atom(), url: String.t()]
-  @type on_start() ::
-          {:ok, pid()}
-          | :ignore
-          | {:error, {:already_started, pid()} | {:shutdown, term()} | term()}
 
-  @spec command(atom | pid | {atom, any} | {:via, atom, any}, command_t(), keyword()) ::
+  @enforce_keys ~w(name url pool_size)a
+
+  defstruct @enforce_keys
+
+  @doc """
+  create new redis pool instance
+
+  ## Examples
+
+  iex> LibRedis.Pool.new()
+  """
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
+    opts =
+      opts
+      |> Keyword.put_new(:name, :redis_pool)
+      |> Keyword.put_new(:pool_size, 10)
+      |> Keyword.put_new(:url, "redis://:123456@localhost:6379")
+
+    struct(__MODULE__, opts)
+  end
+
+  @spec command(t(), command_t(), keyword()) ::
           {:ok, term()} | {:error, term()}
   def command(pool, command, opts \\ []) do
     pool_timeout = Keyword.get(opts, :pool_timeout, 5000)
 
     NimblePool.checkout!(
-      pool,
+      pool.name,
       :checkout,
       fn _, conn ->
         conn
@@ -40,13 +61,13 @@ defmodule LibRedis.Pool do
     )
   end
 
-  @spec pipeline(atom | pid | {atom, any} | {:via, atom, any}, [command_t()], keyword) ::
+  @spec pipeline(t(), [command_t()], keyword) ::
           {:ok, term()} | {:error, term()}
   def pipeline(pool, commands, opts \\ []) do
     pool_timeout = Keyword.get(opts, :pool_timeout, 5000)
 
     NimblePool.checkout!(
-      pool,
+      pool.name,
       :checkout,
       fn _, conn ->
         conn
@@ -67,12 +88,6 @@ defmodule LibRedis.Pool do
   @impl NimblePool
   def handle_checkout(:checkout, _from, conn, pool_state) do
     {:ok, conn, conn, pool_state}
-
-    with {:ok, "PONG"} <- Redix.command(conn, ["PING"]) do
-      {:ok, conn, conn, pool_state}
-    else
-      _ -> {:remove, :closed, pool_state}
-    end
   end
 
   @impl NimblePool
@@ -85,23 +100,42 @@ defmodule LibRedis.Pool do
   def handle_info(_, conn), do: {:ok, conn}
 
   @impl NimblePool
+  def handle_ping(conn, _pool_state) do
+    Redix.command(conn, ["PING"])
+    |> case do
+      {:ok, "PONG"} -> {:ok, conn}
+      _ -> {:remove, :closed}
+    end
+  end
+
+  @impl NimblePool
   def terminate_worker(_reason, conn, pool_state) do
     Redix.stop(conn)
     {:ok, pool_state}
   end
 
   def child_spec(opts) do
-    name = Keyword.fetch!(opts, :name)
-    %{id: {__MODULE__, name}, start: {__MODULE__, :start_link, [opts]}}
+    pool = Keyword.fetch!(opts, :pool)
+    %{id: {__MODULE__, pool.name}, start: {__MODULE__, :start_link, [opts]}}
   end
 
-  @spec start_link(redis_opts()) :: on_start()
+  @doc """
+  start redis with nimble pool
+
+  ## Examples
+
+  iex> LibRedis.Pool.start_link(pool: LibRedis.Pool.new())
+  """
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
-    {url, opts} = Keyword.pop(opts, :url)
+    {pool, opts} = Keyword.pop(opts, :pool)
 
     opts =
       opts
-      |> Keyword.put_new(:worker, {__MODULE__, url})
+      |> Keyword.put_new(:worker, {__MODULE__, pool.url})
+      |> Keyword.put_new(:pool_size, pool.pool_size)
+      |> Keyword.put_new(:worker_idle_timeout, 10_000)
+      |> Keyword.put_new(:name, pool.name)
 
     NimblePool.start_link(opts)
   end

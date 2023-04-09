@@ -3,15 +3,17 @@ defmodule LibRedisTest.Pool do
 
   alias LibRedis.Pool
 
+  @name :test_redis
   @url "redis://:123456@localhost:6379"
 
   setup do
-    {:ok, pid} = Pool.start_link(name: PoolTest, url: @url)
-    {:ok, pid: pid}
+    pool = Pool.new(name: @name, url: @url)
+    start_supervised!({Pool, pool: pool})
+    {:ok, %{pool: pool}}
   end
 
-  test "set/get", %{pid: pid} do
-    assert {:ok, "OK"} = Pool.command(pid, ["SET", "foo", "bar"])
-    assert {:ok, "bar"} = Pool.command(pid, ["GET", "foo"])
+  test "set/get", %{pool: pool} do
+    assert {:ok, "OK"} = Pool.command(pool, ["SET", "foo", "bar"])
+    assert {:ok, "bar"} = Pool.command(pool, ["GET", "foo"])
   end
 end

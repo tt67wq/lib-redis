@@ -36,7 +36,6 @@ defmodule LibRedis.SlotStore.Default do
   @behaviour SlotStore
 
   # types
-  @type name :: atom()
   @type t :: %__MODULE__{
           name: GenServer.name()
         }

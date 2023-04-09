@@ -6,7 +6,7 @@ defmodule LibRedisTest.SlotStoreTest do
   setup do
     store = Default.new()
     start_supervised!({Default, store: store})
-    %{store: store}
+    {:ok, %{store: store}}
   end
 
   test "put_and_get", %{store: store} do
