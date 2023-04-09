@@ -44,6 +44,14 @@ defmodule LibRedis.Pool do
     struct(__MODULE__, opts)
   end
 
+  @doc """
+  delegate to Redix.command/2
+
+  ## Examples
+
+  iex> LibRedis.Pool.command(pool, ["SET", "foo", "bar"])
+  {:ok, "OK"}
+  """
   @spec command(t(), command_t(), keyword()) ::
           {:ok, term()} | {:error, term()}
   def command(pool, command, opts \\ []) do
@@ -61,6 +69,14 @@ defmodule LibRedis.Pool do
     )
   end
 
+  @doc """
+  delegate to Redix.pipeline/2
+
+  ## Examples
+
+  iex> LibRedis.Pool.pipeline(pool, [["SET", "foo", "bar"], ["SET", "bar", "foo"]])
+  {:ok, ["OK", "OK"]]}
+  """
   @spec pipeline(t(), [command_t()], keyword) ::
           {:ok, term()} | {:error, term()}
   def pipeline(pool, commands, opts \\ []) do
