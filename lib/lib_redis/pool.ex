@@ -55,14 +55,14 @@ defmodule LibRedis.Pool do
   @spec command(t(), command_t(), keyword()) ::
           {:ok, term()} | {:error, term()}
   def command(pool, command, opts \\ []) do
-    pool_timeout = Keyword.get(opts, :pool_timeout, 5000)
+    {pool_timeout, opts} = Keyword.pop(opts, :pool_timeout, 5000)
 
     NimblePool.checkout!(
       pool.name,
       :checkout,
       fn _, conn ->
         conn
-        |> Redix.command(command)
+        |> Redix.command(command, opts)
         |> then(fn x -> {x, conn} end)
       end,
       pool_timeout
@@ -80,14 +80,14 @@ defmodule LibRedis.Pool do
   @spec pipeline(t(), [command_t()], keyword) ::
           {:ok, term()} | {:error, term()}
   def pipeline(pool, commands, opts \\ []) do
-    pool_timeout = Keyword.get(opts, :pool_timeout, 5000)
+    {pool_timeout, opts} = Keyword.pop(opts, :pool_timeout, 5000)
 
     NimblePool.checkout!(
       pool.name,
       :checkout,
       fn _, conn ->
         conn
-        |> Redix.pipeline(commands)
+        |> Redix.pipeline(commands, opts)
         |> then(fn x -> {x, conn} end)
       end,
       pool_timeout
