@@ -89,7 +89,7 @@ defmodule LibRedis.Cluster do
   cluster redis client
   """
 
-  alias LibRedis.{Client, Pool, SlotFinder, SlotStore}
+  alias LibRedis.{Client}
 
   @behaviour Client
 
@@ -134,9 +134,6 @@ defmodule LibRedis.Cluster do
     end
   end
 
-  defmodule Guards do
-  end
-
   @impl Client
   def new(opts \\ []) do
     opts =
@@ -168,6 +165,16 @@ defmodule LibRedis.Cluster do
       _ ->
         GenServer.start(__MODULE__, cluster)
     end
+  end
+
+  @impl Client
+  def command(client, command, opts \\ []) do
+    GenServer.call(client.name, {:command, command, opts})
+  end
+
+  @impl Client
+  def pipeline(client, commands, opts \\ []) do
+    GenServer.call(client.name, {:pipeline, commands, opts})
   end
 
   # "redis://:123456@localhost:6379" => "localhost:6379"
@@ -258,6 +265,10 @@ defmodule LibRedis.Cluster do
     try_command(state, command, opts, 3)
   end
 
+  def handle_call({:pipeline, commands, opts}, _from, state) do
+    try_pipeline(state, commands, opts, 3)
+  end
+
   defp try_command(state, command, opts, retries_left) do
     case do_command(state, command, opts) do
       {:ok, result} ->
@@ -265,6 +276,19 @@ defmodule LibRedis.Cluster do
 
       {:error, _reason} when retries_left > 0 ->
         try_command(state, command, opts, retries_left - 1)
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  defp try_pipeline(state, commands, opts, retries_left) do
+    case do_pipeline(state, commands, opts) do
+      {:ok, result} ->
+        {:reply, result, state}
+
+      {:error, _reason} when retries_left > 0 ->
+        try_pipeline(state, commands, opts, retries_left - 1)
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
@@ -279,11 +303,47 @@ defmodule LibRedis.Cluster do
     |> Enum.find(fn x -> x.start_slot <= target and x.end_slot >= target end)
     |> case do
       nil ->
-        {:error, "no slot info found"}
+        {:error, "slot not found"}
 
       slot ->
         client = state.clients[slot.master.ip <> ":" <> Integer.to_string(slot.master.port)]
         LibRedis.Standalone.command(client, command, opts)
     end
+  end
+
+  # client => [command]
+  defp group_commands([], _, acc), do: acc
+
+  defp group_commands([command | t], state, acc) do
+    [_, key | _] = command
+    target = LibRedis.SlotFinder.hash_slot(key)
+
+    state
+    |> get_slot_info()
+    |> Enum.find(fn x -> x.start_slot <= target and x.end_slot >= target end)
+    |> case do
+      nil ->
+        {:error, "slot not found"}
+
+      slot ->
+        client = state.clients[slot.master.ip <> ":" <> Integer.to_string(slot.master.port)]
+        group_commands(t, state, Map.update(acc, client, [command], &(&1 ++ [command])))
+    end
+  end
+
+  defp do_pipeline(state, commands, opts) do
+    commands
+    |> group_commands(state, %{})
+    |> Enum.reduce_while([], fn {client, commands}, acc ->
+      LibRedis.Standalone.pipeline(client, commands, opts)
+      |> case do
+        {:ok, ret} -> {:cont, acc ++ ret}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> (fn
+          {:error, _} = err -> err
+          x -> {:ok, x}
+        end).()
   end
 end
