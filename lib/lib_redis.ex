@@ -8,10 +8,11 @@ defmodule LibRedis do
           mode: :cluster | :standalone,
           url: bitstring(),
           password: bitstring(),
-          pool_size: non_neg_integer()
+          pool_size: non_neg_integer(),
+          client: Client.client()
         }
 
-  @enforce_keys ~w(name mode url password pool_size)a
+  @enforce_keys ~w(name mode url password pool_size client)a
 
   defstruct @enforce_keys
 
@@ -39,7 +40,39 @@ defmodule LibRedis do
       |> Keyword.put_new(:password, "")
       |> Keyword.put_new(:pool_size, 10)
 
-    struct(__MODULE__, opts)
+    __MODULE__
+    |> struct(opts)
+    |> with_client()
+  end
+
+  defp with_client(%__MODULE__{mode: :standalone} = redis) do
+    client =
+      Standalone.new(
+        name: redis.name,
+        url: redis.url,
+        pool_size: redis.pool_size
+      )
+
+    %{redis | client: client}
+  end
+
+  defp with_client(%__MODULE__{mode: :cluster} = redis) do
+    client =
+      LibRedis.Cluster.new(
+        name: redis.name,
+        urls: url_to_cluster_urls(redis.url, redis.password),
+        pool_size: redis.pool_size
+      )
+
+    %{redis | client: client}
+  end
+
+  def command(redis, command, opts \\ []) do
+    Client.command(redis.client, command, opts)
+  end
+
+  def pipeline(redis, commands, opts \\ []) do
+    Client.pipeline(redis.client, commands, opts)
   end
 
   def child_spec(opts) do
@@ -53,13 +86,25 @@ defmodule LibRedis do
 
     case redis.mode do
       :standalone ->
-        LibRedis.Standalone.start_link(
-          pool: Standalone.new(name: redis.name, url: redis.url, pool_size: redis.pool_size)
-        )
+        LibRedis.Standalone.start_link(pool: redis.client)
 
       :cluster ->
-        Agent.start_link(fn -> :ok end, name: redis.name)
+        LibRedis.Cluster.start_link(cluster: redis.client)
     end
+  end
+
+  defp url_to_cluster_urls(url, "") do
+    url
+    |> String.split(",")
+  end
+
+  defp url_to_cluster_urls(url, password) do
+    url
+    |> String.split(",")
+    |> Enum.map(fn url ->
+      url
+      |> String.replace("redis://", "redis://:" <> password <> "@")
+    end)
   end
 end
 
