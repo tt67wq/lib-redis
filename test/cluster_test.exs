@@ -22,15 +22,15 @@ defmodule LibRedisTest.Cluster do
     assert {:ok, "bar"} = LibRedis.command(redis, ["GET", "foo"])
   end
 
-  # test "pipeline", %{redis: redis} do
-  #   LibRedis.command(redis, ["SET", "counter", 0])
+  test "pipeline", %{redis: redis} do
+    LibRedis.command(redis, ["SET", "counter", 0])
 
-  #   assert {:ok, ["OK", "value2", 1, "1"]} =
-  #            LibRedis.pipeline(redis, [
-  #              ["SET", "key2", "value2"],
-  #              ["GET", "key2"],
-  #              ["INCR", "counter"],
-  #              ["GET", "counter"]
-  #            ])
-  # end
+    assert {:ok, ["OK", "value2", 1, "1"]} =
+             LibRedis.pipeline(redis, [
+               ["SET", "key2", "value2"],
+               ["GET", "key2"],
+               ["INCR", "counter"],
+               ["GET", "counter"]
+             ])
+  end
 end

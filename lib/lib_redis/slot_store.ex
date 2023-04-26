@@ -15,6 +15,7 @@ defmodule LibRedis.SlotStore do
   @type opts :: keyword()
 
   @callback new(opts()) :: t()
+  @callback start_link(store: t()) :: GenServer.on_start()
   @callback get(t()) :: [slot()]
   @callback put(t(), [slot()]) :: :ok | {:error, any()}
 
@@ -92,6 +93,7 @@ defmodule LibRedis.SlotStore.Default do
     %{id: {__MODULE__, store.name}, start: {__MODULE__, :start_link, [opts]}}
   end
 
+  @impl SlotStore
   def start_link(opts) do
     {store, _opts} = Keyword.pop!(opts, :store)
     Agent.start_link(fn -> %{} end, name: store.name)
