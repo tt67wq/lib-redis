@@ -419,13 +419,24 @@ defmodule LibRedis.Cluster do
     |> Enum.reduce_while([], fn {client, commands}, acc ->
       LibRedis.Standalone.pipeline(client, commands, opts)
       |> case do
-        {:ok, ret} -> {:cont, acc ++ ret}
+        {:ok, ret} -> {:cont, Enum.zip(commands, ret) ++ acc}
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
-    |> (fn
-          {:error, _} = err -> err
-          x -> {:ok, x}
-        end).()
+    |> case do
+      {:error, _} = err ->
+        err
+
+      res ->
+        x =
+          commands
+          |> Enum.map(fn command ->
+            res
+            |> Enum.find(fn {c, _} -> c == command end)
+            |> elem(1)
+          end)
+
+        {:ok, x}
+    end
   end
 end

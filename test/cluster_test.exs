@@ -22,6 +22,15 @@ defmodule LibRedisTest.Cluster do
     assert {:ok, "bar"} = LibRedis.command(redis, ["GET", "foo"])
   end
 
+  test "sending a command with options", %{redis: redis} do
+    assert {:ok, "OK"} = LibRedis.command(redis, ["SET", "foo", "bar"], timeout: 1000)
+    assert {:ok, "bar"} = LibRedis.command(redis, ["GET", "foo"], timeout: 1000)
+  end
+
+  test "sending an invalid command", %{redis: redis} do
+    assert {:error, _reason} = LibRedis.command(redis, ["INVALID_COMMAND", "key", "value"])
+  end
+
   test "pipeline", %{redis: redis} do
     LibRedis.command(redis, ["SET", "counter", 0])
 
