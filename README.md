@@ -3,6 +3,10 @@
 
 LibRedis is a Redis client written in Elixir. It is essentially a wrapper around the Redix project, with added support for connection pooling and Redis cluster functionality. The client exposes two main APIs: `command/3` and `pipeline/3`.
 
+## NOTE:
+还没写好，前往别用先
+Don't use it in production, it's not ready yet.
+
 ## Installation
 
 To use LibRedis in your Elixir project, simply add it as a dependency in your `mix.exs` file:
@@ -10,7 +14,7 @@ To use LibRedis in your Elixir project, simply add it as a dependency in your `m
 ```elixir
 defp deps do
   [
-    {:lib_redis, "~> 1.0"}
+    {:lib_redis, github: "tt67wq/lib-redis"}
   ]
 end
 ```
