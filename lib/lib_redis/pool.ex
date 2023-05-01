@@ -1,16 +1,5 @@
 defmodule LibRedis.Pool do
-  @moduledoc """
-  wrap redix with nimble pool
-
-  ## usage:
-
-  add thie to application children:
-
-  children = [
-    ...
-    {LibRedis.Pool, pool: LibRedis.Pool.new(name: Redis, url: "redis://:123456@localhost:6379")}
-  ]
-  """
+  @moduledoc false
 
   @behaviour NimblePool
 

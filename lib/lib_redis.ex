@@ -25,6 +25,7 @@ defmodule LibRedis do
     @type command_t :: [binary() | bitstring()]
 
     @callback new(keyword()) :: client()
+    @callback start_link(keyword()) :: GenServer.on_start()
     @callback command(client(), command_t(), keyword()) :: {:ok, term()} | {:error, term()}
     @callback pipeline(client(), [command_t()], keyword()) :: {:ok, term()} | {:error, term()}
 
@@ -105,9 +106,7 @@ defmodule LibRedis do
 end
 
 defmodule LibRedis.Standalone do
-  @moduledoc """
-  standalone redis client
-  """
+  @moduledoc false
 
   alias LibRedis.{Client, Pool}
 
@@ -122,6 +121,7 @@ defmodule LibRedis.Standalone do
   @impl Client
   defdelegate pipeline(cli, commands, opts), to: Pool
 
+  @impl Client
   defdelegate start_link(opts), to: Pool
 end
 
@@ -188,6 +188,7 @@ defmodule LibRedis.Cluster do
     %{id: {__MODULE__, cluster.name}, start: {__MODULE__, :start_link, [opts]}}
   end
 
+  @impl Client
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     {cluster, _opts} = Keyword.pop!(opts, :cluster)
