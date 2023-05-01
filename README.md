@@ -1,7 +1,8 @@
 <!-- MDOC !-->
 # LibRedis
 
-LibRedis is a Redis client written in Elixir. It is essentially a wrapper around the Redix project, with added support for connection pooling and Redis cluster functionality. The client exposes two main APIs: `command/3` and `pipeline/3`.
+LibRedis is a Redis client written in Elixir. It is essentially a wrapper around the [Redix](https://github.com/whatyouhide/redix) project, with added support for connection pooling and Redis cluster functionality. 
+The client exposes two main APIs: `command/3` and `pipeline/3`.
 
 ## NOTE:
 还没写好，别用先!!!!
@@ -40,6 +41,7 @@ standalone = LibRedis.new(standalone_options)
 ```
 
 The `options` parameter is a keyword list that contains the connection options for Redis. The `pool_size` option specifies the number of connections in the pool.
+Thanks to powerful [nimble_pool](https://github.com/dashbitco/nimble_pool), we can easily use a nimble pool to manage redis connections.
 
 Once you have a instance, you can use the `command/3` and `pipeline/3` APIs to execute Redis commands:
 
