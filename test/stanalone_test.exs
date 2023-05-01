@@ -53,7 +53,6 @@ defmodule LibRedisTest.Standalone do
     assert {:ok, -5} = LibRedis.command(redis, ["DECRBY", "counter", "5"], [])
   end
 
-
   test "pipeline", %{redis: redis} do
     LibRedis.command(redis, ["SET", "counter", 0])
 
@@ -63,6 +62,25 @@ defmodule LibRedisTest.Standalone do
                ["GET", "key2"],
                ["INCR", "counter"],
                ["GET", "counter"]
+             ])
+  end
+
+  test "pipeline incr and decr", %{redis: redis} do
+    LibRedis.command(redis, ["SET", "counter", 0])
+
+    assert {:ok, [1, 0, 1]} =
+             LibRedis.pipeline(redis, [
+               ["INCR", "counter"],
+               ["DECR", "counter"],
+               ["INCR", "counter"]
+             ])
+  end
+
+  test "pipeline hset and hget", %{redis: redis} do
+    assert {:ok, [0, "John"]} =
+             LibRedis.pipeline(redis, [
+               ["HSET", "user1", "name", "John"],
+               ["HGET", "user1", "name"]
              ])
   end
 end
