@@ -1,5 +1,9 @@
 defmodule LibRedis.Pool do
-  @moduledoc false
+  @external_resource "docs/pool.md"
+  @moduledoc "docs/pool.md"
+             |> File.read!()
+             |> String.split("<!-- MDOC !-->")
+             |> Enum.fetch!(1)
 
   @behaviour NimblePool
 
