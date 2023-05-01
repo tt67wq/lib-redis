@@ -1,6 +1,10 @@
 defmodule LibRedis do
-  @moduledoc """
-  """
+  @external_resource "docs/lib_redis.md"
+  @moduledoc "docs/lib_redis.md"
+             |> File.read!()
+             |> String.split("<!-- MDOC !-->")
+             |> Enum.fetch!(1)
+
   alias LibRedis.{Standalone, Cluster}
   # types
   @type t :: %__MODULE__{

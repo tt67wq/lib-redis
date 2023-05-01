@@ -1,6 +1,6 @@
 defmodule LibRedis.SlotStore do
   @moduledoc """
-  Behavior for slot store
+  slot store behaviour, used to store slots layer
   """
 
   # types
@@ -46,11 +46,12 @@ defmodule LibRedis.SlotStore.Default do
   defstruct @enforce_keys
 
   @doc """
-  new ets storage
+  new storage
+  the only argument is `:name`, which is the name of the storage
 
   ## Examples
 
-  iex> LibRedis.SlotStore.Default.new
+  iex> LibRedis.SlotStore.Default.new(name: :slot_agent)
   """
   @impl SlotStore
   def new(opts \\ []) do
