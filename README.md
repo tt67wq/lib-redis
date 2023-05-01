@@ -4,7 +4,8 @@
 LibRedis is a Redis client written in Elixir. It is essentially a wrapper around the Redix project, with added support for connection pooling and Redis cluster functionality. The client exposes two main APIs: `command/3` and `pipeline/3`.
 
 ## NOTE:
-还没写好，前往别用先
+还没写好，别用先!!!!
+
 Don't use it in production, it's not ready yet.
 
 ## Installation
@@ -23,39 +24,39 @@ Then, run `mix deps.get` to install the dependency.
 
 ## Usage
 
-### Connection Pooling
+### Standalone
 
-To use LibRedis with connection pooling, first create a pool using the `LibRedis.Pool` module:
+To use LibRedis in singleton mode, you have to starts with `:standalone` mode:
 
 ```elixir
-pool_options = [
-  host: "localhost",
-  port: 6379,
-  database: 0,
-  size: 5
+standalone_options = [
+  name: :redis,
+  mode: :standalone,
+  url: "redis://:pwd@localhost:6379",
+  pool_size: 5
 ]
 
-pool = LibRedis.Pool.new(pool_options)
+standalone = LibRedis.new(standalone_options)
 ```
 
-The `pool_options` parameter is a keyword list that contains the connection options for Redis. The `size` option specifies the number of connections in the pool.
+The `options` parameter is a keyword list that contains the connection options for Redis. The `pool_size` option specifies the number of connections in the pool.
 
-Once you have a pool, you can use the `command/3` and `pipeline/3` APIs to execute Redis commands:
+Once you have a instance, you can use the `command/3` and `pipeline/3` APIs to execute Redis commands:
 
 ```elixir
-{:ok, result} = LibRedis.command(pool, ["GET", "mykey"])
+{:ok, result} = LibRedis.command(standalone, ["GET", "mykey"])
 ```
 
-The `command/3` function takes a pool object, a Redis command as a list of strings, and an optional timeout in milliseconds. It returns a tuple with the status of the command execution and the result.
+The `command/3` function takes a LibRedis object, a Redis command as a list of strings, and an optional timeout in milliseconds. It returns a tuple with the status of the command execution and the result.
 
 ```elixir
-{:ok, result} = LibRedis.pipeline(pool, [
+{:ok, result} = LibRedis.pipeline(standalone, [
   ["SET", "mykey", "value1"],
   ["GET", "mykey"]
 ])
 ```
 
-The `pipeline/3` function takes a pool object and a list of Redis commands, where each command is represented as a list of strings. It returns a tuple with the status of the pipeline execution and a list of results.
+The `pipeline/3` function takes a LibRedis object and a list of Redis commands, where each command is represented as a list of strings. It returns a tuple with the status of the pipeline execution and a list of results.
 
 ### Redis Cluster
 
@@ -63,17 +64,17 @@ To use LibRedis with Redis cluster, first create a cluster using the `LibRedis.C
 
 ```elixir
 cluster_options = [
-  nodes: [
-    "redis://localhost:7000",
-    "redis://localhost:7001",
-    "redis://localhost:7002"
-  ]
+  name: :redis,
+  mode: :cluster,
+  url: "redis://localhost:6381,redis://localhost:6382,redis://localhost:6383,redis://localhost:6384,redis://localhost:6385",
+  password: "123456",
+  pool_size: 5
 ]
 
-cluster = LibRedis.Cluster.new(cluster_options)
+cluster = LibRedis.new(cluster_options)
 ```
 
-The `cluster_options` parameter is a keyword list that contains the connection options for Redis cluster. The `nodes` option specifies a list of Redis nodes in the cluster.
+The `cluster_options` parameter is a keyword list that contains the connection options for Redis cluster. 
 
 Once you have a cluster, you can use the `command/3` and `pipeline/3` APIs to execute Redis commands:
 
