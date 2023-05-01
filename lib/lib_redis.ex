@@ -1,6 +1,6 @@
 defmodule LibRedis do
-  @external_resource "docs/lib_redis.md"
-  @moduledoc "docs/lib_redis.md"
+  @external_resource "README.md"
+  @moduledoc "README.md"
              |> File.read!()
              |> String.split("<!-- MDOC !-->")
              |> Enum.fetch!(1)
