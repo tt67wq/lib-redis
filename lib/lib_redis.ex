@@ -5,13 +5,13 @@ defmodule LibRedis do
              |> String.split("<!-- MDOC !-->")
              |> Enum.fetch!(1)
 
-  alias LibRedis.{Standalone, Cluster}
+  alias LibRedis.{Standalone, Cluster, Typespecs}
   # types
   @type t :: %__MODULE__{
-          name: GenServer.name(),
+          name: Typespecs.name(),
           mode: :cluster | :standalone,
-          url: bitstring(),
-          password: bitstring(),
+          url: Typespecs.url(),
+          password: Typespecs.password(),
           pool_size: non_neg_integer(),
           client: Client.client()
         }
@@ -21,13 +21,16 @@ defmodule LibRedis do
   defstruct @enforce_keys
 
   defmodule Client do
-    @type client :: term()
+    alias LibRedis.Typespecs
+
+    @type client :: struct()
     @type command_t :: [binary() | bitstring()]
+    @type resp_t :: {:ok, term()} | {:error, term()}
 
     @callback new(keyword()) :: client()
-    @callback start_link(keyword()) :: GenServer.on_start()
-    @callback command(client(), command_t(), keyword()) :: {:ok, term()} | {:error, term()}
-    @callback pipeline(client(), [command_t()], keyword()) :: {:ok, term()} | {:error, term()}
+    @callback start_link(keyword()) :: Typespecs.on_start()
+    @callback command(client(), command_t(), keyword()) :: resp_t()
+    @callback pipeline(client(), [command_t()], keyword()) :: resp_t()
 
     def command(client, command, opts), do: delegate(client, :command, [command, opts])
     def pipeline(client, commands, opts), do: delegate(client, :pipeline, [commands, opts])
@@ -130,15 +133,15 @@ defmodule LibRedis.Cluster do
   cluster redis client
   """
 
-  alias LibRedis.{Client}
+  alias LibRedis.{Client, Typespecs}
 
   @behaviour Client
 
   # types
   @type t :: %__MODULE__{
-          name: GenServer.name(),
-          urls: [bitstring()],
-          password: bitstring(),
+          name: Typespecs.name(),
+          urls: [Typespecs.url()],
+          password: Typespecs.password(),
           pool_size: non_neg_integer(),
           refresh_interval_ms: non_neg_integer(),
           client_store: module(),
