@@ -14,8 +14,8 @@ defmodule LibRedis.SlotStore do
         }
   @type opts :: keyword()
 
-  @callback new(opts()) :: t()
   @callback start_link(store: t()) :: GenServer.on_start()
+  @callback new(opts()) :: t()
   @callback get(t()) :: [slot()]
   @callback put(t(), [slot()]) :: :ok | {:error, any()}
 

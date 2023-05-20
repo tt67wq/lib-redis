@@ -7,8 +7,8 @@ defmodule LibRedis.ClientStore do
   @type v :: LibRedis.Pool.t()
   @type opts :: keyword()
 
-  @callback new(opts()) :: t()
   @callback start_link(store: t()) :: GenServer.on_start()
+  @callback new(opts()) :: t()
   @callback get(t()) :: v()
   @callback random(t()) :: v()
 
