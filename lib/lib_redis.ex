@@ -307,7 +307,7 @@ defmodule LibRedis.Cluster do
   end
 
   def handle_call({:pipeline, commands, opts}, _from, state) do
-    try_pipeline(state, commands, opts, 3)
+    try_pipeline(state, commands, opts)
   end
 
   defp try_command(state, command, opts, retries_left) do
@@ -330,24 +330,38 @@ defmodule LibRedis.Cluster do
     end
   end
 
-  defp try_pipeline(state, commands, opts, retries_left) do
-    case do_pipeline(state, commands, opts) do
-      {:ok, result} ->
-        {:reply, {:ok, result}, state}
+  defp try_pipeline(state, commands, opts) do
+    res =
+      group_commands(commands, state, %{})
+      |> Map.to_list()
+      |> Enum.map(fn {client, cmds} ->
+        do_pipeline(client, cmds, opts, 3)
+        |> case do
+          {:ok, res} ->
+            res
 
-      {:error, %Redix.Error{message: msg}} when retries_left > 0 ->
-        if String.starts_with?(msg, "MOVED") do
-          send(self(), :refresh)
+          {:error, :moved} ->
+            try_pipeline(state, cmds, opts)
+
+          {:error, error} ->
+            raise error
         end
+      end)
+      |> List.flatten()
 
-        try_pipeline(state, commands, opts, retries_left - 1)
+    reply =
+      commands
+      |> Enum.map(fn cmd ->
+        {_, ret} =
+          Enum.find(res, fn
+            {^cmd, _} -> true
+            _ -> false
+          end)
 
-      {:error, _reason} when retries_left > 0 ->
-        try_pipeline(state, commands, opts, retries_left - 1)
+        ret
+      end)
 
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
-    end
+    {:reply, {:ok, reply}, state}
   end
 
   defp do_command(
@@ -383,6 +397,29 @@ defmodule LibRedis.Cluster do
     end
   end
 
+  defp do_pipeline(client, commands, opts, retries_left) do
+    case LibRedis.Standalone.pipeline(client, commands, opts) do
+      {:ok, result} ->
+        {:ok, Enum.zip(commands, result)}
+
+      {:error, %Redix.Error{message: msg}} when retries_left > 0 ->
+        if String.starts_with?(msg, "MOVED") do
+          send(self(), :refresh)
+          {:error, :moved}
+        else
+          do_pipeline(client, commands, opts, retries_left - 1)
+        end
+
+      {:error, _reason} when retries_left > 0 ->
+        do_pipeline(client, commands, opts, retries_left - 1)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # group_commands takes a list of commands and groups them by slot.
+  # returns a map of standalone-client -> command list
   defp group_commands([], _, acc), do: acc
 
   defp group_commands([command | t], %{slot_store: ss, cluster: cluster} = state, acc) do
@@ -414,34 +451,6 @@ defmodule LibRedis.Cluster do
           |> LibRedis.ClientStore.get()
 
         group_commands(t, state, Map.update(acc, cli, [command], &(&1 ++ [command])))
-    end
-  end
-
-  defp do_pipeline(state, commands, opts) do
-    commands
-    |> group_commands(state, %{})
-    |> Map.to_list()
-    |> Enum.reduce_while([], fn {client, commands}, acc ->
-      LibRedis.Standalone.pipeline(client, commands, opts)
-      |> case do
-        {:ok, ret} -> {:cont, Enum.zip(commands, ret) ++ acc}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-    |> case do
-      {:error, _} = err ->
-        err
-
-      res ->
-        x =
-          commands
-          |> Enum.map(fn command ->
-            res
-            |> Enum.find(fn {c, _} -> c == command end)
-            |> elem(1)
-          end)
-
-        {:ok, x}
     end
   end
 end
