@@ -42,4 +42,66 @@ defmodule LibRedisTest.Cluster do
                ["GET", "counter"]
              ])
   end
+
+  test "pipeline incr and decr", %{redis: redis} do
+    LibRedis.command(redis, ["SET", "counter", 0])
+
+    assert {:ok, [1, 0, 1]} =
+             LibRedis.pipeline(redis, [
+               ["INCR", "counter"],
+               ["DECR", "counter"],
+               ["INCR", "counter"]
+             ])
+  end
+
+  test "pipeline hset and hget", %{redis: redis} do
+    assert {:ok, [0, "John"]} =
+             LibRedis.pipeline(redis, [
+               ["HSET", "user1", "name", "John"],
+               ["HGET", "user1", "name"]
+             ])
+  end
+
+  test "multiple successful commands", %{redis: redis} do
+    result =
+      LibRedis.pipeline(redis, [
+        ["SET", "key1", "value1"],
+        ["SET", "key2", "value2"],
+        ["SET", "key3", "value3"]
+      ])
+
+    assert result == {:ok, ["OK", "OK", "OK"]}
+  end
+
+  test "one command fail", %{redis: redis} do
+    assert {:ok, ["OK", %Redix.Error{}, "OK"]} =
+             LibRedis.pipeline(redis, [
+               ["SET", "key1", "value1"],
+               ["SETXX", "key2", "value2"],
+               ["SET", "key3", "value3"]
+             ])
+  end
+
+  test "multiple operations on same key in pipeline", %{redis: redis} do
+    assert {:ok, ["OK", "value", "OK"]} =
+             LibRedis.pipeline(redis, [
+               ["SET", "key", "value"],
+               ["GET", "key"],
+               ["SET", "key", "value"]
+             ])
+  end
+
+  test "mix pipeline and non-pipeline commands", %{redis: redis} do
+    assert {:ok, "OK"} = LibRedis.command(redis, ["SET", "key", "value"])
+    assert {:ok, "OK"} = LibRedis.command(redis, ["SET", "counter", "2"])
+
+    assert {:ok, [3, "OK", "value"]} =
+             LibRedis.pipeline(redis, [["INCR", "counter"], ["SET", "key2", "ok"], ["GET", "key"]])
+  end
+
+  test "large pipeline", %{redis: redis} do
+    cmds = for i <- 1..10000, do: ["SET", "key#{i}", "value#{i}"]
+    assert {:ok, results} = LibRedis.pipeline(redis, cmds)
+    assert Enum.all?(results, fn res -> res == "OK" end)
+  end
 end

@@ -111,6 +111,40 @@ The `command/3` function takes a cluster object, a Redis command as a list of st
 
 The `pipeline/3` function takes a cluster object and a list of Redis commands, where each command is represented as a list of strings. It returns a tuple with the status of the pipeline execution and a list of results.
 
+
+## Test
+```
+Cover compiling modules ...
+............................
+Finished in 3.3 seconds (0.00s async, 3.3s sync)
+28 tests, 0 failures
+
+Randomized with seed 28971
+
+Generating cover results ...
+
+Percentage | Module
+-----------|--------------------------
+    68.75% | LibRedis.Pool
+    76.47% | LibRedis.SlotFinder
+    80.00% | LibRedis.Cluster
+    86.67% | LibRedis.ClientStore.Default
+    96.43% | LibRedis
+   100.00% | LibRedis.Client
+   100.00% | LibRedis.ClientStore
+   100.00% | LibRedis.SlotStore
+   100.00% | LibRedis.SlotStore.Default
+   100.00% | LibRedis.Standalone
+   100.00% | LibRedis.Typespecs
+-----------|--------------------------
+    82.93% | Total
+
+Coverage test failed, threshold not met:
+
+    Coverage:   82.93%
+    Threshold:  90.00%
+```
+
 ## License
 
 LibRedis is released under the [MIT License](https://opensource.org/licenses/MIT).
