@@ -40,6 +40,14 @@ standalone_options = [
 standalone = LibRedis.new(standalone_options)
 ```
 
+Then, add the `:lib_redis` application to your supervision tree:
+
+```elixir
+children = [
+  {LibRedis, redis: standalone}
+]
+```
+
 The `options` parameter is a keyword list that contains the connection options for Redis. The `pool_size` option specifies the number of connections in the pool.
 Thanks to powerful [nimble_pool](https://github.com/dashbitco/nimble_pool), we can easily use a nimble pool to manage redis connections.
 
@@ -74,6 +82,14 @@ cluster_options = [
 ]
 
 cluster = LibRedis.new(cluster_options)
+```
+
+Then, add the `:lib_redis` application to your supervision tree:
+
+```elixir
+children = [
+  {LibRedis, redis: cluster}
+]
 ```
 
 The `cluster_options` parameter is a keyword list that contains the connection options for Redis cluster. 
