@@ -6,6 +6,45 @@ defmodule LibRedis do
              |> Enum.fetch!(1)
 
   alias LibRedis.{Standalone, Cluster, Typespecs}
+
+  @client_options_schema [
+    name: [
+      type: :atom,
+      default: :redis,
+      doc: "The name of the redis client"
+    ],
+    mode: [
+      type: {:in, [:standalone, :cluster]},
+      default: :standalone,
+      doc: "The mode of the redis client, :standalone or :cluster"
+    ],
+    url: [
+      type: :string,
+      required: true,
+      doc: "The url of the redis server, like redis://:123456@localhost:6379"
+    ],
+    password: [
+      type: :string,
+      default: "",
+      doc: "The password of the redis server, this option is useful in cluster mode"
+    ],
+    pool_size: [
+      type: :non_neg_integer,
+      default: 10,
+      doc: "The pool size of the redis client's pool"
+    ],
+    client_store_module: [
+      type: :any,
+      default: LibRedis.ClientStore.Default,
+      doc: "The implementation of the client store, see LibRedis.ClientStore for more details"
+    ],
+    slot_store_module: [
+      type: :any,
+      default: LibRedis.SlotStore.Default,
+      doc: "The implementation of the slot store, see LibRedis.SlotStore for more details"
+    ]
+  ]
+  @type options() :: [unquote(NimbleOptions.option_typespec(@client_options_schema))]
   # types
   @type t :: %__MODULE__{
           name: Typespecs.name(),
@@ -13,10 +52,12 @@ defmodule LibRedis do
           url: Typespecs.url(),
           password: Typespecs.password(),
           pool_size: non_neg_integer(),
-          client: Client.client()
+          client: Client.client(),
+          client_store_module: module(),
+          slot_store_module: module()
         }
 
-  @enforce_keys ~w(name mode url password pool_size client)a
+  @enforce_keys ~w(name mode url password pool_size client client_store_module slot_store_module)a
 
   defstruct @enforce_keys
 
@@ -39,14 +80,25 @@ defmodule LibRedis do
       do: apply(module, func, [client | args])
   end
 
+  @doc """
+  create a new redis client
+
+  ## Options
+  #{NimbleOptions.docs(@client_options_schema)}
+
+  ## Examples
+
+  iex> standalone_options = [
+    name: :redis,
+    mode: :standalone,
+    url: "redis://:pwd@localhost:6379",
+    pool_size: 5
+  ]
+  iex> LibRedis.new(standalone_options)
+  """
+  @spec new(options()) :: t()
   def new(opts \\ []) do
-    opts =
-      opts
-      |> Keyword.put_new(:name, :redis)
-      |> Keyword.put_new(:mode, :standalone)
-      |> Keyword.put_new(:url, "redis://:123456@localhost:6379")
-      |> Keyword.put_new(:password, "")
-      |> Keyword.put_new(:pool_size, 10)
+    opts = opts |> NimbleOptions.validate!(@client_options_schema)
 
     __MODULE__
     |> struct(opts)
@@ -70,7 +122,9 @@ defmodule LibRedis do
         name: redis.name,
         urls: redis.url |> url_to_cluster_urls(),
         password: redis.password,
-        pool_size: redis.pool_size
+        pool_size: redis.pool_size,
+        client_store_module: redis.client_store_module,
+        slot_store_module: redis.slot_store_module
       )
 
     %{redis | client: client}
@@ -144,8 +198,8 @@ defmodule LibRedis.Cluster do
           password: Typespecs.password(),
           pool_size: non_neg_integer(),
           refresh_interval_ms: non_neg_integer(),
-          client_store: module(),
-          slot_store: module()
+          client_store_module: module(),
+          slot_store_module: module()
         }
 
   @type node_info :: %{ip: bitstring(), port: non_neg_integer()}
@@ -158,7 +212,7 @@ defmodule LibRedis.Cluster do
         }
 
   @url_regex ~r/^redis:\/\/\w+:\d+$/
-  @enforce_keys ~w(name urls password pool_size refresh_interval_ms client_store slot_store)a
+  @enforce_keys ~w(name urls password pool_size refresh_interval_ms client_store_module slot_store_module)a
 
   defstruct @enforce_keys
 
@@ -171,8 +225,8 @@ defmodule LibRedis.Cluster do
       |> Keyword.put_new(:password, "")
       |> Keyword.put_new(:pool_size, 10)
       |> Keyword.put_new(:refresh_interval_ms, 10_000)
-      |> Keyword.put_new(:client_store, LibRedis.ClientStore.Default)
-      |> Keyword.put_new(:slot_store, LibRedis.SlotStore.Default)
+      |> Keyword.put_new(:client_store_module, LibRedis.ClientStore.Default)
+      |> Keyword.put_new(:slot_store_module, LibRedis.SlotStore.Default)
 
     opts[:urls]
     |> Enum.map(fn url ->
@@ -231,16 +285,16 @@ defmodule LibRedis.Cluster do
   end
 
   def init(cluster) do
-    slot_store = cluster.slot_store.new()
-    client_store = cluster.client_store.new()
-    {:ok, _} = cluster.slot_store.start_link(store: slot_store)
-    {:ok, _} = cluster.client_store.start_link(store: client_store)
+    slot_store = cluster.slot_store_module.new()
+    client_store = cluster.client_store_module.new()
+    {:ok, _} = cluster.slot_store_module.start_link(store: slot_store)
+    {:ok, _} = cluster.client_store_module.start_link(store: client_store)
 
     cluster.urls
     |> Enum.map(fn url ->
       {host, port} = parse_url(url)
 
-      cluster.client_store.new(
+      cluster.client_store_module.new(
         host: host,
         port: port,
         opts: [
@@ -284,7 +338,7 @@ defmodule LibRedis.Cluster do
     }
   end
 
-  defp reload_slot_info(client_store) do
+  defp refetch_slot_info(client_store) do
     client_store
     |> LibRedis.ClientStore.random()
     |> LibRedis.Standalone.command(["CLUSTER", "SLOTS"], [])
@@ -295,12 +349,12 @@ defmodule LibRedis.Cluster do
     |> parse_slot_info()
   end
 
-  def handle_info(:refresh, %{client_store: cs, slot_store: ss} = state) do
+  def handle_info(:refresh, %{client_store: cs, slot_store: ss, cluster: cluster} = state) do
     cs
-    |> reload_slot_info()
+    |> refetch_slot_info()
     |> (fn x -> LibRedis.SlotStore.put(ss, x) end).()
 
-    Process.send_after(self(), :refresh, 60_000)
+    Process.send_after(self(), :refresh, cluster.refresh_interval_ms)
 
     {:noreply, state}
   end
@@ -382,7 +436,7 @@ defmodule LibRedis.Cluster do
         {:error, "slot not found"}
 
       slot ->
-        cluster.client_store.new(
+        cluster.client_store_module.new(
           host: slot.master.ip,
           port: slot.master.port,
           opts: [
@@ -438,7 +492,7 @@ defmodule LibRedis.Cluster do
 
       slot ->
         cli =
-          cluster.client_store.new(
+          cluster.client_store_module.new(
             host: slot.master.ip,
             port: slot.master.port,
             opts: [
