@@ -88,13 +88,13 @@ defmodule LibRedis do
 
   ## Examples
 
-  iex> standalone_options = [
-    name: :redis,
-    mode: :standalone,
-    url: "redis://:pwd@localhost:6379",
-    pool_size: 5
-  ]
-  iex> LibRedis.new(standalone_options)
+      iex> standalone_options = [
+        name: :redis,
+        mode: :standalone,
+        url: "redis://:pwd@localhost:6379",
+        pool_size: 5
+      ]
+      iex> LibRedis.new(standalone_options)
   """
   @spec new(options()) :: t()
   def new(opts \\ []) do
