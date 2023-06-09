@@ -5,8 +5,6 @@ LibRedis is a Redis client written in Elixir. It is essentially a wrapper around
 The client exposes two main APIs: `command/3` and `pipeline/3`.
 
 ## NOTE:
-**Cluster模式在生产环境慎重使用，尚未测试完整**
-
 **The implementation of the Cluster mode in production requires careful consideration and attention, as it has yet to undergo complete and rigorous testing.**
 
 ## Installation
@@ -27,7 +25,7 @@ Then, run `mix deps.get` to install the dependency.
 
 ### Standalone
 
-To use LibRedis in singleton mode, you have to starts with `:standalone` mode:
+To use LibRedis in singleton mode, you have to set your client as `:standalone` mode:
 
 ```elixir
 standalone_options = [
@@ -40,7 +38,7 @@ standalone_options = [
 standalone = LibRedis.new(standalone_options)
 ```
 
-Then, add the `:lib_redis` application to your supervision tree:
+Then, add the `LibRedis` application to your supervision tree:
 
 ```elixir
 children = [
@@ -84,7 +82,7 @@ cluster_options = [
 cluster = LibRedis.new(cluster_options)
 ```
 
-Then, add the `:lib_redis` application to your supervision tree:
+Then, add the `LibRedis` application to your supervision tree:
 
 ```elixir
 children = [
