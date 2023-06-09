@@ -130,10 +130,29 @@ defmodule LibRedis do
     %{redis | client: client}
   end
 
+  @doc """
+  execute a redis command
+
+  ## Examples
+
+      iex> LibRedis.command(redis, ["SET", "key", "value"])
+      {:ok, "OK"}
+  """
+  @spec command(t(), Client.command_t(), keyword()) :: Client.resp_t()
   def command(redis, command, opts \\ []) do
     Client.command(redis.client, command, opts)
   end
 
+
+  @doc """
+  execute a redis pipeline
+
+  ## Examples
+
+      iex> LibRedis.pipeline(redis, [["SET", "key", "value"], ["GET", "key"]])
+      {:ok, ["OK", "value"]}
+  """
+  @spec pipeline(t(), [Client.command_t()], keyword()) :: Client.resp_t()
   def pipeline(redis, commands, opts \\ []) do
     Client.pipeline(redis.client, commands, opts)
   end

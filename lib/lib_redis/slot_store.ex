@@ -51,7 +51,7 @@ defmodule LibRedis.SlotStore.Default do
 
   ## Examples
 
-  iex> LibRedis.SlotStore.Default.new(name: :slot_agent)
+      iex> LibRedis.SlotStore.Default.new(name: :slot_agent)
   """
   @impl SlotStore
   def new(opts \\ []) do
@@ -67,8 +67,8 @@ defmodule LibRedis.SlotStore.Default do
 
   ## Examples
 
-  iex> s = LibRedis.SlotStore.Default.new()
-  iex> LibRedis.SlotStore.Default.get(s)
+      iex> s = LibRedis.SlotStore.Default.new()
+      iex> LibRedis.SlotStore.Default.get(s)
   """
   @impl SlotStore
   def get(store) do
@@ -80,9 +80,9 @@ defmodule LibRedis.SlotStore.Default do
 
   ## Examples
 
-  iex> s = LibRedis.SlotStore.Default.new()
-  iex> LibRedis.SlotStore.Default.put(s, [%{start_slot: 0, end_slot: 1}])
-  :ok
+      iex> s = LibRedis.SlotStore.Default.new()
+      iex> LibRedis.SlotStore.Default.put(s, [%{start_slot: 0, end_slot: 1}])
+      :ok
   """
   @impl SlotStore
   def put(store, slots) do

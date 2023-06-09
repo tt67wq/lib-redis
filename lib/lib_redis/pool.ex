@@ -24,7 +24,7 @@ defmodule LibRedis.Pool do
 
   ## Examples
 
-  iex> LibRedis.Pool.new()
+      iex> LibRedis.Pool.new()
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
@@ -42,8 +42,8 @@ defmodule LibRedis.Pool do
 
   ## Examples
 
-  iex> LibRedis.Pool.command(pool, ["SET", "foo", "bar"])
-  {:ok, "OK"}
+      iex> LibRedis.Pool.command(pool, ["SET", "foo", "bar"])
+      {:ok, "OK"}
   """
   @spec command(t(), command_t(), keyword()) ::
           {:ok, term()} | {:error, term()}
@@ -67,8 +67,8 @@ defmodule LibRedis.Pool do
 
   ## Examples
 
-  iex> LibRedis.Pool.pipeline(pool, [["SET", "foo", "bar"], ["SET", "bar", "foo"]])
-  {:ok, ["OK", "OK"]]}
+      iex> LibRedis.Pool.pipeline(pool, [["SET", "foo", "bar"], ["SET", "bar", "foo"]])
+      {:ok, ["OK", "OK"]]}
   """
   @spec pipeline(t(), [command_t()], keyword) ::
           {:ok, term()} | {:error, term()}
@@ -133,7 +133,7 @@ defmodule LibRedis.Pool do
 
   ## Examples
 
-  iex> LibRedis.Pool.start_link(pool: LibRedis.Pool.new())
+      iex> LibRedis.Pool.start_link(pool: LibRedis.Pool.new())
   """
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
