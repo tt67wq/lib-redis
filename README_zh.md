@@ -3,8 +3,15 @@
 
 LibRedis是一个使用Elixir编写的Redis客户端。它本质上是[Redix](https://github.com/whatyouhide/redix)项目的封装，拥有连接池和Redis集群功能的额外支持。该客户端提供了两个主要的API：`command/3`和`pipeline/3`。
 
+
 ## NOTE:
 **Cluster模式在生产环境慎重使用，尚未测试完整**
+
+
+## 特性
+- [x] 连接池
+- [x] 单例模式
+- [x] 集群模式
 
 ## Installation
 

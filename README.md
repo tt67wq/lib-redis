@@ -4,8 +4,15 @@
 LibRedis is a Redis client written in Elixir. It is essentially a wrapper around the [Redix](https://github.com/whatyouhide/redix) project, with added support for connection pooling and Redis cluster functionality. 
 The client exposes two main APIs: `command/3` and `pipeline/3`.
 
+中文文档 ----> [README_zh.md](https://github.com/tt67wq/lib-redis/blob/master/README_zh.md)
+
 ## NOTE:
 **The implementation of the Cluster mode in production requires careful consideration and attention, as it has yet to undergo complete and rigorous testing.**
+
+## Features
+- [x] Connection pooling
+- [x] Standalone mode
+- [x] Cluster mode
 
 ## Installation
 
