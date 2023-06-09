@@ -118,6 +118,10 @@ The `pipeline/3` function takes a cluster object and a list of Redis commands, w
 
 
 ## Test
+To run unit tests, you can start a Redis service using Docker locally and then execute the `mix test` command.
+
+The specific way to start the Redis service can be found in the [docker-compose](./docker-compose/run.md) file.
+
 ```
 Cover compiling modules ...
 ............................

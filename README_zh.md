@@ -118,6 +118,13 @@ children = [
 
 
 ## Test
+为了运行单元测试，可在本地用docker启动redis服务，然后执行`mix test`命令。
+
+redis服务的具体启动方式可参考[docker-compose](./docker-compose/run.md)文件。
+
+#### 集群服务
+```yaml
+
 ```
 Cover compiling modules ...
 ............................
