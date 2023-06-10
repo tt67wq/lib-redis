@@ -4,7 +4,7 @@
 LibRedis is a Redis client written in Elixir. It is essentially a wrapper around the [Redix](https://github.com/whatyouhide/redix) project, with added support for connection pooling and Redis cluster functionality. 
 The client exposes two main APIs: `command/3` and `pipeline/3`.
 
-中文文档 ----> [README_zh.md](https://github.com/tt67wq/lib-redis/blob/master/README_zh.md)
+Please refer to the detailed project documentation: [hexdocs](https://hexdocs.pm/lib_redis/0.1.0/LibRedis.html)
 
 ## NOTE:
 **The implementation of the Cluster mode in production requires careful consideration and attention, as it has yet to undergo complete and rigorous testing.**
@@ -21,7 +21,7 @@ To use LibRedis in your Elixir project, simply add it as a dependency in your `m
 ```elixir
 defp deps do
   [
-    {:lib_redis, github: "tt67wq/lib-redis"}
+    {:lib_redis, "~> 0.1"}
   ]
 end
 ```
@@ -120,7 +120,7 @@ The `pipeline/3` function takes a cluster object and a list of Redis commands, w
 ## Test
 To run unit tests, you can start a Redis service using Docker locally and then execute the `mix test` command.
 
-The specific way to start the Redis service can be found in the [docker-compose](./docker-compose/run.md) file.
+The specific way to start the Redis service can be referred to in the run.md file under the docker-compose directory.
 
 ```
 Cover compiling modules ...

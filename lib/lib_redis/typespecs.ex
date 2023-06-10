@@ -1,5 +1,7 @@
 defmodule LibRedis.Typespecs do
-  @moduledoc false
+  @moduledoc """
+  Some typespecs for LibRedis
+  """
 
   @type name :: atom()
   @type url :: bitstring()

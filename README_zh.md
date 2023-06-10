@@ -4,6 +4,9 @@
 LibRedis是一个使用Elixir编写的Redis客户端。它本质上是[Redix](https://github.com/whatyouhide/redix)项目的封装，拥有连接池和Redis集群功能的额外支持。该客户端提供了两个主要的API：`command/3`和`pipeline/3`。
 
 
+详细项目文档请参考：[hexdocs](https://hexdocs.pm/lib_redis/0.1.0/LibRedis.html)
+
+
 ## NOTE:
 **Cluster模式在生产环境慎重使用，尚未测试完整**
 
@@ -21,7 +24,7 @@ LibRedis是一个使用Elixir编写的Redis客户端。它本质上是[Redix](ht
 ```elixir
 defp deps do
   [
-    {:lib_redis, github: "tt67wq/lib-redis"}
+    {:lib_redis, "~> 0.1"}
   ]
 end
 ```
@@ -120,7 +123,7 @@ children = [
 ## Test
 为了运行单元测试，可在本地用docker启动redis服务，然后执行`mix test`命令。
 
-redis服务的具体启动方式可参考[docker-compose](./docker-compose/run.md)文件。
+redis服务的具体启动方式可参考docker-compose目录下run.md文件。
 
 #### 集群服务
 ```yaml
