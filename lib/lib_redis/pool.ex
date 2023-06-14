@@ -7,6 +7,24 @@ defmodule LibRedis.Pool do
 
   @behaviour NimblePool
 
+  @pool_opts_schema [
+    name: [
+      type: :atom,
+      default: :redis_pool,
+      doc: "The name of the pool"
+    ],
+    pool_size: [
+      type: :non_neg_integer,
+      default: 10,
+      doc: "The size of the pool"
+    ],
+    url: [
+      type: :string,
+      required: true,
+      doc: "The url of the redis server, like redis://:123456@localhost:6379"
+    ]
+  ]
+
   # type
   @type t :: %__MODULE__{
           name: GenServer.name(),
@@ -14,6 +32,7 @@ defmodule LibRedis.Pool do
           pool_size: non_neg_integer()
         }
   @type command_t :: [binary() | bitstring()]
+  @type pool_opts_t :: keyword(unquote(NimbleOptions.option_typespec(@pool_opts_schema)))
 
   @enforce_keys ~w(name url pool_size)a
 
@@ -22,17 +41,18 @@ defmodule LibRedis.Pool do
   @doc """
   create new redis pool instance
 
+  ## Options
+  #{NimbleOptions.docs(@pool_opts_schema)}
+
   ## Examples
 
       iex> LibRedis.Pool.new()
   """
-  @spec new(keyword()) :: t()
+  @spec new(pool_opts_t()) :: t()
   def new(opts \\ []) do
     opts =
       opts
-      |> Keyword.put_new(:name, :redis_pool)
-      |> Keyword.put_new(:pool_size, 10)
-      |> Keyword.put_new(:url, "redis://:123456@localhost:6379")
+      |> NimbleOptions.validate!(@pool_opts_schema)
 
     struct(__MODULE__, opts)
   end
