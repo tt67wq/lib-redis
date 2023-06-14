@@ -116,6 +116,27 @@ The `command/3` function takes a cluster object, a Redis command as a list of st
 
 The `pipeline/3` function takes a cluster object and a list of Redis commands, where each command is represented as a list of strings. It returns a tuple with the status of the pipeline execution and a list of results.
 
+## Design
+
+### Connection Pooling
+I use [nimble_pool](https://github.com/dashbitco/nimble_pool) to wrap Redix connections and manage them in a pool. Each time you execute a command or pipeline operation, you will get a connection from the pool and return it to the pool after the operation is completed.
+
+### Standalone Mode
+In standalone mode, the client maintains a solitary connection pool to a singular Redis instance. The client will seamlessly reestablish connection with the Redis instance in the event of any disruption.
+
+### Cluster Mode
+Cluster mode presents a significantly more intricate setup compared to standalone mode. Within this mode, the client executes the `CLUSTER SLOTS` command to obtain the cluster's topology. The client periodically retrieves this topology, typically every 10 seconds (though it can be adjusted), and stores it locally in the form of a cache (known as an Agent).
+
+This cache facilitates the client's management of node addresses and their corresponding connections. If an address is not found within the cache, the client promptly establishes a new connection and stores it accordingly.
+
+The client processes a single command by first identifying the node to which the command should be sent based on the command's key. It then locates the corresponding connection from the cache and executes the command on the connection.
+
+Pipeline operation is far more complex than command operation. 
+- first, client will group commands in pipelines by it's key;
+- then, client will iterate the grouped pipelines and execute them in parallel;
+- finnal, client will merge the results of the pipelines and return them to the caller.
+
+Client will automatically retry the command if the command fails due to a connection error. If the command fails due to a Redis error, the client will return the error to the caller. If the command fails with a `Moved` error, means cluster topology has changed, the client will update the cluster topology and retry the command.
 
 ## Test
 To run unit tests, you can start a Redis service using Docker locally and then execute the `mix test` command.
