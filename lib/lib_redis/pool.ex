@@ -9,7 +9,7 @@ defmodule LibRedis.Pool do
 
   @pool_opts_schema [
     name: [
-      type: :atom,
+      type: {:or, [:atom, :pid]},
       default: :redis_pool,
       doc: "The name of the pool"
     ],
@@ -65,13 +65,19 @@ defmodule LibRedis.Pool do
       iex> LibRedis.Pool.command(pool, ["SET", "foo", "bar"])
       {:ok, "OK"}
   """
-  @spec command(t(), command_t(), keyword()) ::
+  @spec command(t() | pid() | atom(), command_t(), keyword()) ::
           {:ok, term()} | {:error, term()}
-  def command(pool, command, opts \\ []) do
+  def command(instance, command, opts \\ [])
+
+  def command(pool, command, opts) when is_struct(pool) do
+    command(pool.name, command, opts)
+  end
+
+  def command(name, command, opts) do
     {pool_timeout, opts} = Keyword.pop(opts, :pool_timeout, 5000)
 
     NimblePool.checkout!(
-      pool.name,
+      name,
       :checkout,
       fn _, conn ->
         conn
@@ -90,13 +96,19 @@ defmodule LibRedis.Pool do
       iex> LibRedis.Pool.pipeline(pool, [["SET", "foo", "bar"], ["SET", "bar", "foo"]])
       {:ok, ["OK", "OK"]]}
   """
-  @spec pipeline(t(), [command_t()], keyword) ::
+  @spec pipeline(t() | pid() | atom(), [command_t()], keyword) ::
           {:ok, term()} | {:error, term()}
-  def pipeline(pool, commands, opts \\ []) do
+  def pipeline(pool, commands, opts \\ [])
+
+  def pipeline(pool, commands, opts) when is_struct(pool) do
+    pipeline(pool.name, commands, opts)
+  end
+
+  def pipeline(name, commands, opts) do
     {pool_timeout, opts} = Keyword.pop(opts, :pool_timeout, 5000)
 
     NimblePool.checkout!(
-      pool.name,
+      name,
       :checkout,
       fn _, conn ->
         conn

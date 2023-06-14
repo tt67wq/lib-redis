@@ -1,10 +1,9 @@
 defmodule LibRedis.SlotStore do
   @moduledoc """
-  slot store behaviour, used to store slots layer
+  used to store slot topology
   """
 
   # types
-  @type t :: struct()
   @type node_info :: %{ip: bitstring(), port: non_neg_integer()}
   @type slot :: %{
           start_slot: non_neg_integer(),
@@ -13,37 +12,11 @@ defmodule LibRedis.SlotStore do
           replicas: [node_info()]
         }
   @type opts :: keyword()
-
-  @callback start_link(store: t()) :: GenServer.on_start()
-  @callback new(opts()) :: t()
-  @callback get(t()) :: [slot()]
-  @callback put(t(), [slot()]) :: :ok | {:error, any()}
-
-  def get(store), do: delegate(store, :get, [])
-
-  def put(store, slots), do: delegate(store, :put, [slots])
-
-  defp delegate(%module{} = storage, func, args),
-    do: apply(module, func, [storage | args])
-end
-
-defmodule LibRedis.SlotStore.Default do
-  @moduledoc """
-  Default SlotStore implementation using Agent
-  """
-
-  alias LibRedis.SlotStore
-
-  @behaviour SlotStore
-
-  # types
   @type t :: %__MODULE__{
           name: GenServer.name()
         }
 
-  @enforce_keys ~w(name)a
-
-  defstruct @enforce_keys
+  defstruct [:name]
 
   @doc """
   new storage
@@ -53,7 +26,7 @@ defmodule LibRedis.SlotStore.Default do
 
       iex> LibRedis.SlotStore.Default.new(name: :slot_agent)
   """
-  @impl SlotStore
+  @spec new(opts()) :: t()
   def new(opts \\ []) do
     opts =
       opts
@@ -70,7 +43,7 @@ defmodule LibRedis.SlotStore.Default do
       iex> s = LibRedis.SlotStore.Default.new()
       iex> LibRedis.SlotStore.Default.get(s)
   """
-  @impl SlotStore
+  @spec get(t()) :: [slot()]
   def get(store) do
     Agent.get(store.name, & &1)
   end
@@ -84,7 +57,7 @@ defmodule LibRedis.SlotStore.Default do
       iex> LibRedis.SlotStore.Default.put(s, [%{start_slot: 0, end_slot: 1}])
       :ok
   """
-  @impl SlotStore
+  @spec put(t(), [slot()]) :: :ok
   def put(store, slots) do
     Agent.update(store.name, fn _ -> slots end)
   end
@@ -94,7 +67,6 @@ defmodule LibRedis.SlotStore.Default do
     %{id: {__MODULE__, store.name}, start: {__MODULE__, :start_link, [opts]}}
   end
 
-  @impl SlotStore
   def start_link(opts) do
     {store, _opts} = Keyword.pop!(opts, :store)
     Agent.start_link(fn -> %{} end, name: store.name)

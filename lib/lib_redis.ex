@@ -1,3 +1,25 @@
+defmodule LibRedis.Client do
+  @moduledoc """
+  Redis client behaviour
+  """
+  alias LibRedis.{Typespecs, Error}
+
+  @type client :: struct()
+  @type command_t :: [binary() | bitstring()]
+  @type resp_t :: {:ok, term()} | Error.t()
+
+  @callback new(keyword()) :: client()
+  @callback start_link(keyword()) :: Typespecs.on_start()
+  @callback command(client(), command_t(), keyword()) :: resp_t()
+  @callback pipeline(client(), [command_t()], keyword()) :: resp_t()
+
+  def command(client, command, opts), do: delegate(client, :command, [command, opts])
+  def pipeline(client, commands, opts), do: delegate(client, :pipeline, [commands, opts])
+
+  defp delegate(%module{} = client, func, args),
+    do: apply(module, func, [client | args])
+end
+
 defmodule LibRedis do
   @external_resource "README.md"
   @moduledoc "README.md"
@@ -5,7 +27,7 @@ defmodule LibRedis do
              |> String.split("<!-- MDOC !-->")
              |> Enum.fetch!(1)
 
-  alias LibRedis.{Standalone, Cluster, Typespecs}
+  alias LibRedis.{Standalone, Cluster, Typespecs, Client}
 
   @client_options_schema [
     name: [
@@ -60,25 +82,6 @@ defmodule LibRedis do
   @enforce_keys ~w(name mode url password pool_size client client_store_module slot_store_module)a
 
   defstruct @enforce_keys
-
-  defmodule Client do
-    alias LibRedis.Typespecs
-
-    @type client :: struct()
-    @type command_t :: [binary() | bitstring()]
-    @type resp_t :: {:ok, term()} | {:error, term()}
-
-    @callback new(keyword()) :: client()
-    @callback start_link(keyword()) :: Typespecs.on_start()
-    @callback command(client(), command_t(), keyword()) :: resp_t()
-    @callback pipeline(client(), [command_t()], keyword()) :: resp_t()
-
-    def command(client, command, opts), do: delegate(client, :command, [command, opts])
-    def pipeline(client, commands, opts), do: delegate(client, :pipeline, [commands, opts])
-
-    defp delegate(%module{} = client, func, args),
-      do: apply(module, func, [client | args])
-  end
 
   @doc """
   create a new redis client
@@ -143,7 +146,6 @@ defmodule LibRedis do
     Client.command(redis.client, command, opts)
   end
 
-
   @doc """
   execute a redis pipeline
 
@@ -206,7 +208,8 @@ defmodule LibRedis.Cluster do
   cluster redis client
   """
 
-  alias LibRedis.{Client, Typespecs}
+  alias LibRedis.{Client, Typespecs, Error}
+  require Logger
 
   @behaviour Client
 
@@ -217,8 +220,8 @@ defmodule LibRedis.Cluster do
           password: Typespecs.password(),
           pool_size: non_neg_integer(),
           refresh_interval_ms: non_neg_integer(),
-          client_store_module: module(),
-          slot_store_module: module()
+          client_store: ClientStore.t(),
+          slot_store: SlotStore.t()
         }
 
   @type node_info :: %{ip: bitstring(), port: non_neg_integer()}
@@ -231,9 +234,16 @@ defmodule LibRedis.Cluster do
         }
 
   @url_regex ~r/^redis:\/\/\w+:\d+$/
-  @enforce_keys ~w(name urls password pool_size refresh_interval_ms client_store_module slot_store_module)a
 
-  defstruct @enforce_keys
+  defstruct [
+    :name,
+    :urls,
+    :password,
+    :pool_size,
+    :refresh_interval_ms,
+    :client_store,
+    :slot_store
+  ]
 
   @impl Client
   def new(opts \\ []) do
@@ -244,8 +254,8 @@ defmodule LibRedis.Cluster do
       |> Keyword.put_new(:password, "")
       |> Keyword.put_new(:pool_size, 10)
       |> Keyword.put_new(:refresh_interval_ms, 10_000)
-      |> Keyword.put_new(:client_store_module, LibRedis.ClientStore.Default)
-      |> Keyword.put_new(:slot_store_module, LibRedis.SlotStore.Default)
+      |> Keyword.put_new(:client_store, LibRedis.ClientStore.new())
+      |> Keyword.put_new(:slot_store, LibRedis.SlotStore.new())
 
     opts[:urls]
     |> Enum.map(fn url ->
@@ -256,6 +266,9 @@ defmodule LibRedis.Cluster do
 
     struct(__MODULE__, opts)
   end
+
+  defp error_log(cmd, error),
+    do: Logger.error(%{"mode" => "cluster", "error" => error, "cmd" => cmd})
 
   defp valid_redis_url?(url), do: Regex.match?(@url_regex, url)
 
@@ -288,12 +301,7 @@ defmodule LibRedis.Cluster do
     prefix <> ":" <> password <> "@" <> String.slice(url, 8..-1)
   end
 
-  defp random_name() do
-    :crypto.strong_rand_bytes(16)
-    |> Base.encode64()
-    |> String.to_atom()
-  end
-
+  @spec parse_url(Typespecs.url()) :: {bitstring(), non_neg_integer()}
   defp parse_url(url) do
     [ip, port] =
       url
@@ -304,30 +312,22 @@ defmodule LibRedis.Cluster do
   end
 
   def init(cluster) do
-    slot_store = cluster.slot_store_module.new()
-    client_store = cluster.client_store_module.new()
-    {:ok, _} = cluster.slot_store_module.start_link(store: slot_store)
-    {:ok, _} = cluster.client_store_module.start_link(store: client_store)
-
     cluster.urls
     |> Enum.map(fn url ->
       {host, port} = parse_url(url)
 
-      cluster.client_store_module.new(
-        host: host,
-        port: port,
-        opts: [
-          name: random_name(),
-          pool_size: cluster.pool_size,
-          url: url_with_password(url, cluster.password)
-        ]
-      )
+      [
+        name: {:via, cluster.client_store.name, {host, port}},
+        pool_size: cluster.pool_size,
+        url: url_with_password(url, cluster.password)
+      ]
     end)
-    |> Enum.each(&LibRedis.ClientStore.get(&1))
+    |> Enum.map(&LibRedis.Pool.new(&1))
+    |> Enum.map(&LibRedis.Pool.start_link(pool: &1))
 
     send(self(), :refresh)
 
-    {:ok, %{cluster: cluster, client_store: client_store, slot_store: slot_store}}
+    {:ok, %{cluster: cluster}}
   end
 
   # Response Format:
@@ -368,10 +368,10 @@ defmodule LibRedis.Cluster do
     |> parse_slot_info()
   end
 
-  def handle_info(:refresh, %{client_store: cs, slot_store: ss, cluster: cluster} = state) do
-    cs
+  def handle_info(:refresh, %{cluster: cluster} = state) do
+    cluster.client_store
     |> refetch_slot_info()
-    |> (fn x -> LibRedis.SlotStore.put(ss, x) end).()
+    |> (fn x -> LibRedis.SlotStore.put(cluster.slot_store, x) end).()
 
     Process.send_after(self(), :refresh, cluster.refresh_interval_ms)
 
@@ -402,7 +402,8 @@ defmodule LibRedis.Cluster do
         try_command(state, command, opts, retries_left - 1)
 
       {:error, reason} ->
-        {:reply, {:error, reason}, state}
+        error_log(command, reason)
+        {:reply, Error.new(inspect(reason)), state}
     end
   end
 
@@ -425,6 +426,7 @@ defmodule LibRedis.Cluster do
       end)
       |> List.flatten()
 
+    # resort by original order
     reply =
       commands
       |> Enum.map(fn cmd ->
@@ -441,13 +443,13 @@ defmodule LibRedis.Cluster do
   end
 
   defp do_command(
-         %{cluster: cluster, slot_store: ss},
+         %{cluster: cluster},
          [_, key | _] = command,
          opts
        ) do
     target = LibRedis.SlotFinder.hash_slot(key)
 
-    ss
+    cluster.slot_store
     |> LibRedis.SlotStore.get()
     |> Enum.find(fn x -> x.start_slot <= target and x.end_slot >= target end)
     |> case do
@@ -455,26 +457,14 @@ defmodule LibRedis.Cluster do
         {:error, "slot not found"}
 
       slot ->
-        cluster.client_store_module.new(
-          host: slot.master.ip,
-          port: slot.master.port,
-          opts: [
-            name: random_name(),
-            pool_size: cluster.pool_size,
-            url:
-              url_with_password(
-                "redis://:#{cluster.password}@#{slot.master.ip}:#{slot.master.port}",
-                ""
-              )
-          ]
-        )
-        |> LibRedis.ClientStore.get()
-        |> LibRedis.Standalone.command(command, opts)
+        cluster
+        |> load_client(slot)
+        |> LibRedis.Pool.command(command, opts)
     end
   end
 
   defp do_pipeline(client, commands, opts, retries_left) do
-    case LibRedis.Standalone.pipeline(client, commands, opts) do
+    case LibRedis.Pool.pipeline(client, commands, opts) do
       {:ok, result} ->
         {:ok, Enum.zip(commands, result)}
 
@@ -498,11 +488,11 @@ defmodule LibRedis.Cluster do
   # returns a map of standalone-client -> command list
   defp group_commands([], _, acc), do: acc
 
-  defp group_commands([command | t], %{slot_store: ss, cluster: cluster} = state, acc) do
+  defp group_commands([command | t], %{cluster: cluster} = state, acc) do
     [_, key | _] = command
     target = LibRedis.SlotFinder.hash_slot(key)
 
-    ss
+    cluster.slot_store
     |> LibRedis.SlotStore.get()
     |> Enum.find(fn x -> x.start_slot <= target and x.end_slot >= target end)
     |> case do
@@ -510,23 +500,31 @@ defmodule LibRedis.Cluster do
         {:error, "slot not found"}
 
       slot ->
-        cli =
-          cluster.client_store_module.new(
-            host: slot.master.ip,
-            port: slot.master.port,
-            opts: [
-              name: random_name(),
-              pool_size: cluster.pool_size,
-              url:
-                url_with_password(
-                  "redis://:#{cluster.password}@#{slot.master.ip}:#{slot.master.port}",
-                  ""
-                )
-            ]
-          )
-          |> LibRedis.ClientStore.get()
+        cli = load_client(cluster, slot)
 
         group_commands(t, state, Map.update(acc, cli, [command], &(&1 ++ [command])))
+    end
+  end
+
+  defp load_client(cluster, slot) do
+    cluster.client_store
+    |> LibRedis.ClientStore.get({slot.master.ip, slot.master.port})
+    |> case do
+      nil ->
+        [
+          name: {:via, cluster.client_store.name, {slot.master.ip, slot.master.port}},
+          pool_size: cluster.pool_size,
+          url:
+            url_with_password(
+              "redis://:#{cluster.password}@#{slot.master.ip}:#{slot.master.port}",
+              ""
+            )
+        ]
+        |> LibRedis.Pool.new()
+        |> tap(&LibRedis.Pool.start_link(pool: &1))
+
+      client ->
+        client
     end
   end
 end
