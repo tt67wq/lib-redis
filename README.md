@@ -118,7 +118,7 @@ The `pipeline/3` function takes a cluster object and a list of Redis commands, w
 ## Design
 
 ### Connection Pooling
-I use [nimble_pool](https://github.com/dashbitco/nimble_pool) to wrap Redix connections and manage them in a pool. Each time you execute a command or pipeline operation, you will get a connection from the pool and return it to the pool after the operation is completed.
+I leverage [nimble_pool](https://github.com/dashbitco/nimble_pool) to encapsulate Redix connections and administer them within a pool. Every time a command or pipeline operation is executed, a connection is acquired from the pool and subsequently returned upon completion of the operation.
 
 ### Standalone Mode
 In standalone mode, the client maintains a solitary connection pool to a singular Redis instance. The client will seamlessly reestablish connection with the Redis instance in the event of any disruption.
