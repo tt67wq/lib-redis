@@ -1,6 +1,8 @@
 defmodule LibRedis.Client do
   @moduledoc """
-  Redis client behaviour
+  Redis client behaviour, there are 2 implementations of this behaviour:
+  - LibRedis.Standalone
+  - LibRedis.Cluster
   """
   alias LibRedis.{Typespecs, Error}
 
@@ -184,7 +186,9 @@ defmodule LibRedis do
 end
 
 defmodule LibRedis.Standalone do
-  @moduledoc false
+  @moduledoc """
+  Standalone redis client is just a delegate to LibRedis.Pool
+  """
 
   alias LibRedis.{Client, Pool}
 
