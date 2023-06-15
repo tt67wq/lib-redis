@@ -3,12 +3,12 @@ defmodule LibRedis.ClientStore do
   redis client store, using registry to store {host, port} -> pid mapping
   """
   # types
-  @type k :: {bitstring(), non_neg_integer()}
-  @type v :: pid() | nil
-  @type opts :: keyword()
   @type t :: %__MODULE__{
           name: GenServer.name()
         }
+  @type v :: pid() | nil
+  @type k :: {bitstring(), non_neg_integer()}
+  @type opts :: keyword()
 
   defstruct [:name]
 

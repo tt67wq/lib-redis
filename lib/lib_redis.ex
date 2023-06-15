@@ -6,16 +6,19 @@ defmodule LibRedis.Client do
   """
   alias LibRedis.{Typespecs, Error}
 
-  @type client :: struct()
-  @type command_t :: [binary() | bitstring()]
+  @type t :: struct()
+  @opaque command_t :: Typespecs.command_t()
   @type resp_t :: {:ok, term()} | Error.t()
 
-  @callback new(keyword()) :: client()
+  @callback new(keyword()) :: t()
   @callback start_link(keyword()) :: Typespecs.on_start()
-  @callback command(client(), command_t(), keyword()) :: resp_t()
-  @callback pipeline(client(), [command_t()], keyword()) :: resp_t()
+  @callback command(t(), command_t(), keyword()) :: resp_t()
+  @callback pipeline(t(), [command_t()], keyword()) :: resp_t()
 
+  @spec command(t(), command_t(), keyword()) :: resp_t()
   def command(client, command, opts), do: delegate(client, :command, [command, opts])
+
+  @spec pipeline(t(), [command_t()], keyword()) :: resp_t()
   def pipeline(client, commands, opts), do: delegate(client, :pipeline, [commands, opts])
 
   defp delegate(%module{} = client, func, args),
@@ -237,6 +240,8 @@ defmodule LibRedis.Cluster do
           replicas: [node_info()]
         }
 
+  @opaque state :: %{cluster: t()}
+
   @url_regex ~r/^redis:\/\/\w+:\d+$/
 
   defstruct [
@@ -282,7 +287,7 @@ defmodule LibRedis.Cluster do
   end
 
   @impl Client
-  @spec start_link(keyword()) :: GenServer.on_start()
+  @spec start_link(cluster: t()) :: Typespecs.on_start()
   def start_link(opts) do
     {cluster, _opts} = Keyword.pop!(opts, :cluster)
     GenServer.start(__MODULE__, cluster, name: cluster.name)
@@ -361,10 +366,11 @@ defmodule LibRedis.Cluster do
     }
   end
 
+  @spec refetch_slot_info(ClientStore.t()) :: [slot_info()]
   defp refetch_slot_info(client_store) do
     client_store
     |> LibRedis.ClientStore.random()
-    |> LibRedis.Standalone.command(["CLUSTER", "SLOTS"], [])
+    |> LibRedis.Pool.command(["CLUSTER", "SLOTS"])
     |> case do
       {:ok, slot_info} -> slot_info
       {:error, _} -> []
@@ -383,17 +389,32 @@ defmodule LibRedis.Cluster do
   end
 
   def handle_call({:command, command, opts}, _from, state) do
-    try_command(state, command, opts, 3)
+    {:reply, try_command(state, command, opts, 3), state}
   end
 
   def handle_call({:pipeline, commands, opts}, _from, state) do
-    try_pipeline(state, commands, opts)
+    res = try_pipeline(state, commands, opts)
+
+    # resort by original order
+    commands
+    |> Enum.map(fn cmd ->
+      {_, ret} =
+        Enum.find(res, fn
+          {^cmd, _} -> true
+          _ -> false
+        end)
+
+      ret
+    end)
+    |> (fn x -> {:reply, {:ok, x}, state} end).()
   end
 
+  @spec try_command(state(), Typespecs.command_t(), keyword(), non_neg_integer()) ::
+          {:ok, any()} | {:error, any()}
   defp try_command(state, command, opts, retries_left) do
     case do_command(state, command, opts) do
       {:ok, result} ->
-        {:reply, {:ok, result}, state}
+        {:ok, result}
 
       {:error, %Redix.Error{message: msg}} when retries_left > 0 ->
         if String.starts_with?(msg, "MOVED") do
@@ -407,66 +428,53 @@ defmodule LibRedis.Cluster do
 
       {:error, reason} ->
         error_log(command, reason)
-        {:reply, Error.new(inspect(reason)), state}
+        Error.new(inspect(reason))
     end
   end
 
+  @spec try_pipeline(state(), [Typespecs.command_t()], keyword()) :: [
+          {Typespecs.command_t(), any()}
+        ]
   defp try_pipeline(state, commands, opts) do
-    res =
-      group_commands(commands, state, %{})
-      |> Map.to_list()
-      |> Enum.map(fn {client, cmds} ->
-        do_pipeline(client, cmds, opts, 3)
-        |> case do
-          {:ok, res} ->
-            res
+    group_commands(commands, state, %{})
+    |> Map.to_list()
+    |> Enum.map(fn {client, cmds} ->
+      do_pipeline(client, cmds, opts, 3)
+      |> case do
+        {:ok, res} ->
+          res
 
-          {:error, :moved} ->
-            try_pipeline(state, cmds, opts)
+        {:error, :moved} ->
+          try_pipeline(state, cmds, opts)
 
-          {:error, error} ->
-            raise error
-        end
-      end)
-      |> List.flatten()
-
-    # resort by original order
-    reply =
-      commands
-      |> Enum.map(fn cmd ->
-        {_, ret} =
-          Enum.find(res, fn
-            {^cmd, _} -> true
-            _ -> false
-          end)
-
-        ret
-      end)
-
-    {:reply, {:ok, reply}, state}
+        # RETHINK: should we raise error here?
+        {:error, error} ->
+          raise error
+      end
+    end)
+    |> List.flatten()
   end
 
+  @spec do_command(state(), Typespecs.command_t(), Keyword.t()) :: {:ok, term()} | {:error, any}
   defp do_command(
          %{cluster: cluster},
          [_, key | _] = command,
          opts
        ) do
-    target = LibRedis.SlotFinder.hash_slot(key)
-
-    cluster.slot_store
-    |> LibRedis.SlotStore.get()
-    |> Enum.find(fn x -> x.start_slot <= target and x.end_slot >= target end)
+    get_client_by_key(cluster, key)
     |> case do
-      nil ->
-        {:error, "slot not found"}
-
-      slot ->
-        cluster
-        |> load_client(slot)
-        |> LibRedis.Pool.command(command, opts)
+      nil -> {:error, "slot not found"}
+      client -> LibRedis.Pool.command(client, command, opts)
     end
   end
 
+  @spec do_pipeline(
+          LibRedis.Pool.t() | pid(),
+          [Typespecs.command_t()],
+          Keyword.t(),
+          non_neg_integer()
+        ) ::
+          {:ok, [{Typespecs.command_t(), term()}]} | {:error, any}
   defp do_pipeline(client, commands, opts, retries_left) do
     case LibRedis.Pool.pipeline(client, commands, opts) do
       {:ok, result} ->
@@ -490,26 +498,27 @@ defmodule LibRedis.Cluster do
 
   # group_commands takes a list of commands and groups them by slot.
   # returns a map of standalone-client -> command list
+  @spec group_commands([Typespecs.command_t()], state(), map()) ::
+          %{
+            (LibRedis.Pool.t() | pid()) => [Typespecs.command_t()]
+          }
+          | {:error, any()}
   defp group_commands([], _, acc), do: acc
 
   defp group_commands([command | t], %{cluster: cluster} = state, acc) do
     [_, key | _] = command
-    target = LibRedis.SlotFinder.hash_slot(key)
 
-    cluster.slot_store
-    |> LibRedis.SlotStore.get()
-    |> Enum.find(fn x -> x.start_slot <= target and x.end_slot >= target end)
+    get_client_by_key(cluster, key)
     |> case do
       nil ->
         {:error, "slot not found"}
 
-      slot ->
-        cli = load_client(cluster, slot)
-
+      cli ->
         group_commands(t, state, Map.update(acc, cli, [command], &(&1 ++ [command])))
     end
   end
 
+  @spec load_client(t(), Typespecs.slot()) :: LibRedis.Pool.t() | pid()
   defp load_client(cluster, slot) do
     cluster.client_store
     |> LibRedis.ClientStore.get({slot.master.ip, slot.master.port})
@@ -529,6 +538,22 @@ defmodule LibRedis.Cluster do
 
       client ->
         client
+    end
+  end
+
+  @spec get_client_by_key(t(), bitstring()) :: LibRedis.Pool.t() | pid() | nil
+  defp get_client_by_key(cluster, key) do
+    target = LibRedis.SlotFinder.hash_slot(key)
+
+    cluster.slot_store
+    |> LibRedis.SlotStore.get()
+    |> Enum.find(fn x -> x.start_slot <= target and x.end_slot >= target end)
+    |> case do
+      nil ->
+        nil
+
+      slot ->
+        load_client(cluster, slot)
     end
   end
 end

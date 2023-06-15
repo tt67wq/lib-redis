@@ -3,15 +3,12 @@ defmodule LibRedis.SlotStore do
   used to store slot topology
   """
 
+  alias LibRedis.Typespecs
+
   # types
-  @type node_info :: %{ip: bitstring(), port: non_neg_integer()}
-  @type slot :: %{
-          start_slot: non_neg_integer(),
-          end_slot: non_neg_integer(),
-          master: node_info(),
-          replicas: [node_info()]
-        }
-  @type opts :: keyword()
+  @opaque node_info :: Typespecs.node_info()
+  @opaque slot :: Typespecs.slot()
+  @opaque opts :: keyword()
   @type t :: %__MODULE__{
           name: GenServer.name()
         }

@@ -9,7 +9,7 @@ defmodule LibRedis.Pool do
 
   @pool_opts_schema [
     name: [
-      type: {:or, [:atom, :pid]},
+      type: {:or, [:atom, :pid, {:tuple, [:atom, :atom, :any]}]},
       default: :redis_pool,
       doc: "The name of the pool"
     ],
@@ -31,7 +31,6 @@ defmodule LibRedis.Pool do
           url: String.t(),
           pool_size: non_neg_integer()
         }
-  @type command_t :: [binary() | bitstring()]
   @type pool_opts_t :: keyword(unquote(NimbleOptions.option_typespec(@pool_opts_schema)))
 
   @enforce_keys ~w(name url pool_size)a
@@ -65,7 +64,7 @@ defmodule LibRedis.Pool do
       iex> LibRedis.Pool.command(pool, ["SET", "foo", "bar"])
       {:ok, "OK"}
   """
-  @spec command(t() | pid() | atom(), command_t(), keyword()) ::
+  @spec command(t() | pid() | atom(), Typespecs.command_t(), keyword()) ::
           {:ok, term()} | {:error, term()}
   def command(instance, command, opts \\ [])
 
@@ -96,7 +95,7 @@ defmodule LibRedis.Pool do
       iex> LibRedis.Pool.pipeline(pool, [["SET", "foo", "bar"], ["SET", "bar", "foo"]])
       {:ok, ["OK", "OK"]]}
   """
-  @spec pipeline(t() | pid() | atom(), [command_t()], keyword) ::
+  @spec pipeline(t() | pid() | atom(), [Typespecs.command_t()], keyword()) ::
           {:ok, term()} | {:error, term()}
   def pipeline(pool, commands, opts \\ [])
 
