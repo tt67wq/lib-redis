@@ -69,7 +69,7 @@ defmodule LibRedis do
           url: Typespecs.url(),
           password: Typespecs.password(),
           pool_size: non_neg_integer(),
-          client: Client.client(),
+          client: Client.t(),
           client_store_module: module(),
           slot_store_module: module()
         }

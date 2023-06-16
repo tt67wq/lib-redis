@@ -20,7 +20,7 @@ To use LibRedis in your Elixir project, simply add it as a dependency in your `m
 ```elixir
 defp deps do
   [
-    {:lib_redis, "~> 0.1"}
+    {:lib_redis, "~> 0.1.1"}
   ]
 end
 ```

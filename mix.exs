@@ -2,7 +2,7 @@ defmodule LibRedis.MixProject do
   use Mix.Project
 
   @name "lib_redis"
-  @version "0.1.0"
+  @version "0.1.1"
   @repo_url "https://github.com/tt67wq/lib-redis"
   @description "A simple wrap of redix, support pool and cluster"
 
