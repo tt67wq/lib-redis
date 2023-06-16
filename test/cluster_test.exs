@@ -31,6 +31,14 @@ defmodule LibRedisTest.Cluster do
     assert {:error, _reason} = LibRedis.command(redis, ["INVALID_COMMAND", "key", "value"])
   end
 
+  test "sending an invalid pipeline", %{redis: redis} do
+    assert {:ok, [%Redix.Error{}, "OK"]} =
+             LibRedis.pipeline(redis, [
+               ["INVALID_COMMAND", "key", "value"],
+               ["SET", "key1", "value1"]
+             ])
+  end
+
   test "pipeline", %{redis: redis} do
     LibRedis.command(redis, ["SET", "counter", 0])
 
@@ -96,7 +104,7 @@ defmodule LibRedisTest.Cluster do
     assert {:ok, "OK"} = LibRedis.command(redis, ["SET", "counter", "2"])
 
     assert {:ok, [3, "OK", "value"]} =
-             LibRedis.pipeline(redis, [["INCR", "counter"], ["SET", "key2", "ok"], ["GET", "key"]])
+             LibRedis.pipeline(redis, [["INCR", "counter"], ["SET", "key22", "ok"], ["GET", "key"]])
   end
 
   test "large pipeline", %{redis: redis} do

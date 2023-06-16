@@ -419,27 +419,26 @@ defmodule LibRedis.Cluster do
     end
   end
 
-  @spec try_pipeline(state(), [Typespecs.command_t()], keyword()) :: [
-          {Typespecs.command_t(), any()}
-        ]
+  @spec try_pipeline(state(), [Typespecs.command_t()], keyword()) ::
+          [{Typespecs.command_t(), any()}] | {:error, any()}
   defp try_pipeline(state, commands, opts) do
     group_commands(commands, state, %{})
     |> Map.to_list()
-    |> Enum.map(fn {client, cmds} ->
+    |> Enum.reduce_while([], fn {client, cmds}, acc ->
       do_pipeline(client, cmds, opts, 3)
       |> case do
         {:ok, res} ->
-          res
+          {:cont, acc ++ res}
 
         {:error, :moved} ->
-          try_pipeline(state, cmds, opts)
+          res = try_pipeline(state, cmds, opts)
+          {:cont, acc ++ res}
 
-        # RETHINK: should we raise error here?
-        {:error, error} ->
-          raise error
+        err ->
+          {:halt, err}
       end
     end)
-    |> List.flatten()
+    |> Enum.reverse()
   end
 
   @spec do_command(state(), Typespecs.command_t(), Keyword.t()) :: {:ok, term()} | {:error, any}
