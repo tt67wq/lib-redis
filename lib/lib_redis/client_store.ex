@@ -35,14 +35,14 @@ defmodule LibRedis.ClientStore do
 
   @spec random(t()) :: v()
   def random(store) do
-    Registry.keys(store.name, self())
+    Registry.select(store.name, [{{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2", :"$3"}}]}])
     |> Enum.random()
     |> case do
       nil ->
         nil
 
-      {host, port} ->
-        get(store, {host, port})
+      {_, pid, _} ->
+        pid
     end
   end
 

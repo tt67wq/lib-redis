@@ -11,7 +11,7 @@ defmodule LibRedisTest.Standalone do
         url: "redis://:123456@localhost:6379"
       )
 
-    start_supervised({LibRedis, redis: redis})
+    start_supervised!({LibRedis, redis: redis})
     {:ok, %{redis: redis}}
   end
 

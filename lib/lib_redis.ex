@@ -59,16 +59,6 @@ defmodule LibRedis do
       type: :non_neg_integer,
       default: 10,
       doc: "The pool size of the redis client's pool"
-    ],
-    client_store_module: [
-      type: :any,
-      default: LibRedis.ClientStore.Default,
-      doc: "The implementation of the client store, see LibRedis.ClientStore for more details"
-    ],
-    slot_store_module: [
-      type: :any,
-      default: LibRedis.SlotStore.Default,
-      doc: "The implementation of the slot store, see LibRedis.SlotStore for more details"
     ]
   ]
   @type options() :: [unquote(NimbleOptions.option_typespec(@client_options_schema))]
@@ -130,9 +120,7 @@ defmodule LibRedis do
         name: redis.name,
         urls: redis.url |> url_to_cluster_urls(),
         password: redis.password,
-        pool_size: redis.pool_size,
-        client_store_module: redis.client_store_module,
-        slot_store_module: redis.slot_store_module
+        pool_size: redis.pool_size
       )
 
     %{redis | client: client}
@@ -259,7 +247,6 @@ defmodule LibRedis.Cluster do
     opts =
       opts
       |> Keyword.put_new(:name, :cluster)
-      |> Keyword.put_new(:urls, ["redis://localhost:6379"])
       |> Keyword.put_new(:password, "")
       |> Keyword.put_new(:pool_size, 10)
       |> Keyword.put_new(:refresh_interval_ms, 10_000)
@@ -288,8 +275,7 @@ defmodule LibRedis.Cluster do
 
   @impl Client
   @spec start_link(cluster: t()) :: Typespecs.on_start()
-  def start_link(opts) do
-    {cluster, _opts} = Keyword.pop!(opts, :cluster)
+  def start_link(cluster: cluster) do
     GenServer.start(__MODULE__, cluster, name: cluster.name)
   end
 
@@ -321,12 +307,13 @@ defmodule LibRedis.Cluster do
   end
 
   def init(cluster) do
+    {:ok, _} = LibRedis.ClientStore.start_link(store: cluster.client_store)
+    {:ok, _} = LibRedis.SlotStore.start_link(store: cluster.slot_store)
+
     cluster.urls
     |> Enum.map(fn url ->
-      {host, port} = parse_url(url)
-
       [
-        name: {:via, cluster.client_store.name, {host, port}},
+        name: {:via, Registry, {cluster.client_store.name, parse_url(url)}},
         pool_size: cluster.pool_size,
         url: url_with_password(url, cluster.password)
       ]
@@ -428,7 +415,7 @@ defmodule LibRedis.Cluster do
 
       {:error, reason} ->
         error_log(command, reason)
-        Error.new(inspect(reason))
+        {:error, Error.new(inspect(reason))}
     end
   end
 
@@ -525,7 +512,7 @@ defmodule LibRedis.Cluster do
     |> case do
       nil ->
         [
-          name: {:via, cluster.client_store.name, {slot.master.ip, slot.master.port}},
+          name: {:via, Registry, {cluster.client_store.name, {slot.master.ip, slot.master.port}}},
           pool_size: cluster.pool_size,
           url:
             url_with_password(

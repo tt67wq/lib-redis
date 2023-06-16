@@ -13,7 +13,7 @@ defmodule LibRedisTest.Cluster do
           "redis://localhost:6381,redis://localhost:6382,redis://localhost:6383,redis://localhost:6384,redis://localhost:6385"
       )
 
-    start_supervised({LibRedis, redis: redis})
+    start_supervised!({LibRedis, redis: redis})
     {:ok, %{redis: redis}}
   end
 
