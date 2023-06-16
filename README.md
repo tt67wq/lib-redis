@@ -143,35 +143,38 @@ To run unit tests, you can start a Redis service using Docker locally and then e
 The specific way to start the Redis service can be referred to in the run.md file under the docker-compose directory.
 
 ```
+Compiling 8 files (.ex)
+Generated lib_redis app
 Cover compiling modules ...
-............................
 Finished in 3.3 seconds (0.00s async, 3.3s sync)
-28 tests, 0 failures
+32 tests, 0 failures
 
-Randomized with seed 28971
+Randomized with seed 498986
 
 Generating cover results ...
 
 Percentage | Module
 -----------|--------------------------
-    68.75% | LibRedis.Pool
+     0.00% | LibRedis.Utils
+    50.00% | LibRedis.Error
+    50.00% | LibRedis.Standalone
+    71.88% | LibRedis.Pool
     76.47% | LibRedis.SlotFinder
-    80.00% | LibRedis.Cluster
-    86.67% | LibRedis.ClientStore.Default
-    96.43% | LibRedis
+    77.91% | LibRedis.Cluster
+    93.75% | LibRedis.ClientStore
+    96.15% | LibRedis
    100.00% | LibRedis.Client
-   100.00% | LibRedis.ClientStore
    100.00% | LibRedis.SlotStore
-   100.00% | LibRedis.SlotStore.Default
-   100.00% | LibRedis.Standalone
    100.00% | LibRedis.Typespecs
 -----------|--------------------------
-    82.93% | Total
+    80.71% | Total
 
 Coverage test failed, threshold not met:
 
-    Coverage:   82.93%
+    Coverage:   80.71%
     Threshold:  90.00%
+
+Generated HTML coverage results in "cover" directory
 ```
 
 ## License
