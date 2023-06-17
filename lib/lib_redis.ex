@@ -380,7 +380,7 @@ defmodule LibRedis.Cluster do
   end
 
   def handle_call({:pipeline, commands, opts}, _from, state) do
-    res = try_pipeline(state, commands, opts)
+    res = try_pipeline(state, commands, opts, 3)
 
     # resort by original order
     commands
@@ -406,12 +406,10 @@ defmodule LibRedis.Cluster do
       {:error, %Redix.Error{message: msg}} when retries_left > 0 ->
         if String.starts_with?(msg, "MOVED") do
           send(self(), :refresh)
+          try_command(state, command, opts, retries_left - 1)
+        else
+          {:error, Error.new(msg)}
         end
-
-        try_command(state, command, opts, retries_left - 1)
-
-      {:error, _reason} when retries_left > 0 ->
-        try_command(state, command, opts, retries_left - 1)
 
       {:error, reason} ->
         error_log(command, reason)
@@ -419,19 +417,19 @@ defmodule LibRedis.Cluster do
     end
   end
 
-  @spec try_pipeline(state(), [Typespecs.command_t()], keyword()) ::
+  @spec try_pipeline(state(), [Typespecs.command_t()], keyword(), non_neg_integer()) ::
           [{Typespecs.command_t(), any()}] | {:error, any()}
-  defp try_pipeline(state, commands, opts) do
+  defp try_pipeline(state, commands, opts, retries_left) do
     group_commands(commands, state, %{})
     |> Map.to_list()
     |> Enum.reduce_while([], fn {client, cmds}, acc ->
-      do_pipeline(client, cmds, opts, 3)
+      do_pipeline(client, cmds, opts)
       |> case do
         {:ok, res} ->
           {:cont, acc ++ res}
 
-        {:error, :moved} ->
-          res = try_pipeline(state, cmds, opts)
+        {:error, :moved} when retries_left > 0 ->
+          res = try_pipeline(state, cmds, opts, retries_left - 1)
           {:cont, acc ++ res}
 
         err ->
@@ -457,28 +455,24 @@ defmodule LibRedis.Cluster do
   @spec do_pipeline(
           LibRedis.Pool.t() | pid(),
           [Typespecs.command_t()],
-          Keyword.t(),
-          non_neg_integer()
+          Keyword.t()
         ) ::
           {:ok, [{Typespecs.command_t(), term()}]} | {:error, any}
-  defp do_pipeline(client, commands, opts, retries_left) do
+  defp do_pipeline(client, commands, opts) do
     case LibRedis.Pool.pipeline(client, commands, opts) do
       {:ok, result} ->
         {:ok, Enum.zip(commands, result)}
 
-      {:error, %Redix.Error{message: msg}} when retries_left > 0 ->
+      {:error, %Redix.Error{message: msg}} ->
         if String.starts_with?(msg, "MOVED") do
           send(self(), :refresh)
           {:error, :moved}
         else
-          do_pipeline(client, commands, opts, retries_left - 1)
+          {:error, Error.new(msg)}
         end
 
-      {:error, _reason} when retries_left > 0 ->
-        do_pipeline(client, commands, opts, retries_left - 1)
-
-      {:error, reason} ->
-        {:error, reason}
+      other ->
+        other
     end
   end
 

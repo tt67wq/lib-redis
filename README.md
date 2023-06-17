@@ -135,7 +135,7 @@ Pipeline operation is far more complex than command operation.
 - then, client will iterate the grouped pipelines and execute them in parallel;
 - finnal, client will merge the results of the pipelines and return them to the caller.
 
-Client will automatically retry the command if the command fails due to a connection error. If the command fails due to a Redis error, the client will return the error to the caller. If the command fails with a `Moved` error, means cluster topology has changed, the client will update the cluster topology and retry the command.
+Client will automatically retry the command if the command fails due to a `Moved` error. If the command fails with a `Moved` error, means cluster topology has changed, the client will update the cluster topology and retry the command. If the command fails due to a Redis error, the client will return the error to the caller. 
 
 ## Test
 To run unit tests, you can start a Redis service using Docker locally and then execute the `mix test` command.
@@ -153,21 +153,21 @@ Randomized with seed 498986
 
 Generating cover results ...
 
-Percentage | Module
------------|--------------------------
-     0.00% | LibRedis.Utils
-    50.00% | LibRedis.Error
-    50.00% | LibRedis.Standalone
-    71.88% | LibRedis.Pool
-    76.47% | LibRedis.SlotFinder
-    77.91% | LibRedis.Cluster
-    93.75% | LibRedis.ClientStore
-    96.15% | LibRedis
-   100.00% | LibRedis.Client
-   100.00% | LibRedis.SlotStore
-   100.00% | LibRedis.Typespecs
------------|--------------------------
-    80.71% | Total
+| Percentage  | Module                     |
+| ----------- | -------------------------- |
+| 0.00%       | LibRedis.Utils             |
+| 50.00%      | LibRedis.Error             |
+| 50.00%      | LibRedis.Standalone        |
+| 71.88%      | LibRedis.Pool              |
+| 76.47%      | LibRedis.SlotFinder        |
+| 77.91%      | LibRedis.Cluster           |
+| 93.75%      | LibRedis.ClientStore       |
+| 96.15%      | LibRedis                   |
+| 100.00%     | LibRedis.Client            |
+| 100.00%     | LibRedis.SlotStore         |
+| 100.00%     | LibRedis.Typespecs         |
+| ----------- | -------------------------- |
+| 80.71%      | Total                      |
 
 Coverage test failed, threshold not met:
 
